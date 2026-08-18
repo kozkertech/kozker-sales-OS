@@ -1268,6 +1268,45 @@ async def seed_demo_records(user_id: str, user_name: str, workspace_id: str):
                                         "created_at": now_iso()})
 
 
+async def seed_demo_account():
+    """Idempotent public demo: a manager + a rep sharing one seeded workspace."""
+    email = "demo@salesmind.app"
+    pw = "Demo1234!"
+    rep_email = "rep@salesmind.app"
+    u = await db.users.find_one({"email": email})
+    if u is None:
+        ws = await db.workspaces.insert_one({"name": "Demo Workspace", "created_at": now_iso()})
+        wid = str(ws.inserted_id)
+        doc = {
+            "name": "Demo Manager", "email": email, "password_hash": hash_password(pw),
+            "role": "manager", "workspace_id": wid, "workspace_name": "Demo Workspace",
+            "created_at": now_iso(),
+        }
+        res = await db.users.insert_one(doc)
+        await seed_workspace(wid)
+        await seed_demo_records(str(res.inserted_id), "Demo Manager", wid)
+        if await db.users.find_one({"email": rep_email}) is None:
+            rep = {
+                "name": "Demo Rep", "email": rep_email, "password_hash": hash_password(pw),
+                "role": "rep", "workspace_id": wid, "workspace_name": "Demo Workspace",
+                "created_at": now_iso(),
+            }
+            rres = await db.users.insert_one(rep)
+            rep_id = str(rres.inserted_id)
+            # Give the rep a couple of owned deals so their scoped view isn't empty.
+            owned = await db.records.find({"workspace_id": wid, "object_type": "deal"}).limit(2).to_list(2)
+            for d in owned:
+                await db.records.update_one({"_id": d["_id"]},
+                                            {"$set": {"owner_id": rep_id, "owner_name": "Demo Rep"}})
+        logger.info("Seeded public demo account")
+    else:
+        if not verify_password(pw, u["password_hash"]):
+            await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(pw)}})
+        r = await db.users.find_one({"email": rep_email})
+        if r and not verify_password(pw, r["password_hash"]):
+            await db.users.update_one({"email": rep_email}, {"$set": {"password_hash": hash_password(pw)}})
+
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -1297,6 +1336,8 @@ async def startup():
                                       {"$set": {"password_hash": hash_password(admin_password)}})
         await seed_workspace(existing["workspace_id"])
         await seed_demo_records(str(existing["_id"]), existing["name"], existing["workspace_id"])
+
+    await seed_demo_account()
 
 
 @app.on_event("shutdown")

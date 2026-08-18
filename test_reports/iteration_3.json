@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 3 focused on the new public demo accounts (demo@salesmind.app / rep@salesmind.app). Created backend test suite covering login, stats, RBAC scoping, forbidden manager-only routes, and cross-workspace isolation. All 13 pytest cases pass. UI-verified demo manager and demo rep logins via the deployed frontend: manager lands on Overview with pipeline snapshot $84,000, contacts=4, companies=3, deals=5; rep lands with $32,000 open, 2 deals, 0 contacts, 0 companies, and NO Team nav item. Navigation works across Contacts/Companies/Deals/Sequences/Approvals for the manager without errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_demo_accounts.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1356 lines — approaching the 700-line threshold from the code review guidelines; consider splitting into modules (auth, records, seed, ai) in a future refactor.",
+    "Login response returns the user document as the top-level object (no wrapping under `user` key). This is consistent with /api/auth/me but is worth documenting in an API spec so frontend clients don't assume { user: {...}, token }."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_demo_accounts.py"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% (manager+rep flows verified)"},
+  "test_credentials": "Demo manager demo@salesmind.app / Demo1234! ; Demo rep rep@salesmind.app / Demo1234! ; Admin govind.developer@kozker.com / SalesMind2026!",
+  "seed_data_creation": "None created — used the app's built-in idempotent seed_demo_account() which pre-populated 4 contacts, 3 companies, 5 deals; 2 deals reassigned to the rep.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Demo accounts are stable and idempotently seeded on startup. RBAC scoping via record_scope() works: rep sees only owner_id-matched records; manager sees the whole workspace. Team + Invites are correctly manager-only (403 for rep, hidden in UI). Cross-tenant isolation verified between Demo Workspace and Kozker Sales admin workspace. Login endpoint returns the user object as top-level (no `user` wrapper). Future testers should keep using /app/backend/tests/test_demo_accounts.py as regression for demo login + RBAC.",
+  "rca of the issue": "N/A — no issues discovered this iteration."
+}
