@@ -43,17 +43,17 @@ export default function Team() {
   };
 
   return (
-    <div className="op-zone h-full flex flex-col bg-operational-bg text-operational-text overflow-y-auto">
-      <div className="h-16 shrink-0 px-6 flex items-center border-b border-operational-border">
+    <div className="h-full flex flex-col bg-quiet-bg text-quiet-text overflow-y-auto">
+      <div className="h-16 shrink-0 px-6 flex items-center border-b border-quiet-border">
         <div>
           <h1 className="font-display font-medium text-xl">Team</h1>
-          <span className="font-mono text-xs text-operational-muted">{members.length} members · reps see only their own records</span>
+          <span className="font-mono text-xs text-quiet-muted">{members.length} members · reps see only their own records</span>
         </div>
       </div>
 
       <div className="p-6 max-w-3xl w-full space-y-8">
         {/* Invite form */}
-        <div className="border border-operational-border rounded-sm p-5">
+        <div className="border border-quiet-border rounded-sm p-5">
           <h2 className="font-display font-medium text-base mb-4 flex items-center gap-2">
             <UserPlus size={16} className="text-coral" /> Invite a teammate
           </h2>
@@ -64,13 +64,13 @@ export default function Team() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="teammate@company.com"
-              className="flex-1 bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+              className="flex-1 bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
             />
             <select
               data-testid="invite-role"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="bg-operational-surface border border-operational-border text-operational-text font-mono text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+              className="bg-quiet-surface border border-quiet-border text-quiet-text font-mono text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
             >
               <option value="rep">rep</option>
               <option value="manager">manager</option>
@@ -83,25 +83,25 @@ export default function Team() {
               <Mail size={15} /> Send invite
             </button>
           </form>
-          <p className="font-body text-xs text-operational-muted mt-3">
+          <p className="font-body text-xs text-quiet-muted mt-3">
             Reps only see the contacts, companies and deals they own. Managers see the whole workspace.
           </p>
         </div>
 
         {/* Members */}
         <div>
-          <h2 className="font-body text-xs uppercase tracking-wider text-operational-muted mb-3">Members</h2>
-          <div className="border border-operational-border rounded-sm divide-y divide-operational-border">
+          <h2 className="font-body text-xs uppercase tracking-wider text-quiet-muted mb-3">Members</h2>
+          <div className="border border-quiet-border rounded-sm divide-y divide-quiet-border">
             {members.map((m) => (
               <div key={m.id} className="flex items-center gap-3 px-4 py-3" data-testid="team-member">
-                <div className="w-8 h-8 rounded-sm bg-operational-surface flex items-center justify-center font-mono text-xs">
+                <div className="w-8 h-8 rounded-sm bg-quiet-surface flex items-center justify-center font-mono text-xs">
                   {m.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-body text-sm text-operational-text">{m.name}</div>
-                  <div className="font-mono text-xs text-operational-muted truncate">{m.email}</div>
+                  <div className="font-body text-sm text-quiet-text">{m.name}</div>
+                  <div className="font-mono text-xs text-quiet-muted truncate">{m.email}</div>
                 </div>
-                <span className="font-mono text-[10px] uppercase tracking-wider border border-operational-border px-2 py-0.5 rounded-sm">
+                <span className="font-mono text-[10px] uppercase tracking-wider border border-quiet-border px-2 py-0.5 rounded-sm">
                   {m.role}
                 </span>
               </div>
@@ -112,19 +112,19 @@ export default function Team() {
         {/* Pending invites */}
         {invites.length > 0 && (
           <div>
-            <h2 className="font-body text-xs uppercase tracking-wider text-operational-muted mb-3">Invitations</h2>
-            <div className="border border-operational-border rounded-sm divide-y divide-operational-border">
+            <h2 className="font-body text-xs uppercase tracking-wider text-quiet-muted mb-3">Invitations</h2>
+            <div className="border border-quiet-border rounded-sm divide-y divide-quiet-border">
               {invites.map((i) => (
                 <div key={i.id} className="flex items-center gap-3 px-4 py-3" data-testid="invite-row">
-                  <span className={i.status === "accepted" ? "text-coral" : "text-operational-muted"}>
+                  <span className={i.status === "accepted" ? "text-coral" : "text-quiet-muted"}>
                     {i.status === "accepted" ? <Check size={15} /> : <Clock size={15} />}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="font-mono text-sm text-operational-text truncate">{i.email}</div>
-                    <div className="font-mono text-[10px] text-operational-muted uppercase">{i.role} · {i.status}</div>
+                    <div className="font-mono text-sm text-quiet-text truncate">{i.email}</div>
+                    <div className="font-mono text-[10px] text-quiet-muted uppercase">{i.role} · {i.status}</div>
                   </div>
                   {i.status === "pending" && (
-                    <button onClick={() => revoke(i.id)} className="text-operational-muted hover:text-coral" data-testid="revoke-invite">
+                    <button onClick={() => revoke(i.id)} className="text-quiet-muted hover:text-coral" data-testid="revoke-invite">
                       <Trash2 size={15} />
                     </button>
                   )}

@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import CoPilot from "@/components/CoPilot";
 import { LayoutDashboard, Users, Building2, Kanban, ScrollText, LogOut, Send, CheckSquare, UserPlus } from "lucide-react";
 
 const NAV = [
@@ -26,16 +27,16 @@ export default function AppShell() {
 
   return (
     <div className="h-screen flex bg-quiet-bg overflow-hidden">
-      {/* Nav rail — quiet */}
-      <aside className="w-60 shrink-0 bg-quiet-surface border-r border-quiet-border flex flex-col">
-        <div className="px-5 h-16 flex items-center gap-2 border-b border-quiet-border">
+      {/* Nav rail — always dark */}
+      <aside className="w-60 shrink-0 bg-operational-bg border-r border-operational-border flex flex-col">
+        <div className="px-5 h-16 flex items-center gap-2 border-b border-operational-border">
           <span className="w-2.5 h-2.5 bg-coral rounded-sm" />
-          <span className="font-display font-semibold text-lg tracking-tight">SalesMind</span>
+          <span className="font-display font-semibold text-lg tracking-tight text-operational-text">SalesMind</span>
         </div>
 
-        <div className="px-4 py-3 border-b border-quiet-border">
-          <div className="font-body text-xs uppercase tracking-wider text-quiet-muted">Workspace</div>
-          <div className="font-display font-medium text-sm mt-0.5 truncate" data-testid="workspace-name">
+        <div className="px-4 py-3 border-b border-operational-border">
+          <div className="font-body text-xs uppercase tracking-wider text-operational-muted">Workspace</div>
+          <div className="font-display font-medium text-sm mt-0.5 truncate text-operational-text" data-testid="workspace-name">
             {user?.workspace_name}
           </div>
         </div>
@@ -50,8 +51,8 @@ export default function AppShell() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-5 py-2.5 font-body text-sm transition-colors ${
                   isActive
-                    ? "text-quiet-text bg-quiet-bg border-l-2 border-coral"
-                    : "text-quiet-muted hover:text-quiet-text border-l-2 border-transparent"
+                    ? "text-operational-text bg-operational-surface border-l-2 border-coral"
+                    : "text-operational-muted hover:text-operational-text hover:bg-operational-surface border-l-2 border-transparent"
                 }`
               }
             >
@@ -61,14 +62,14 @@ export default function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-quiet-border p-4">
+        <div className="border-t border-operational-border p-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-sm bg-operational-bg text-operational-text flex items-center justify-center font-mono text-xs">
+            <div className="w-8 h-8 rounded-sm bg-coral text-white flex items-center justify-center font-mono text-xs">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-body text-sm text-quiet-text truncate">{user?.name}</div>
-              <div className="font-mono text-[11px] text-quiet-muted uppercase">{user?.role}</div>
+              <div className="font-body text-sm text-operational-text truncate">{user?.name}</div>
+              <div className="font-mono text-[11px] text-operational-muted uppercase">{user?.role}</div>
             </div>
             <button
               data-testid="logout-btn"
@@ -76,7 +77,7 @@ export default function AppShell() {
                 await logout();
                 nav("/login");
               }}
-              className="text-quiet-muted hover:text-coral transition-colors"
+              className="text-operational-muted hover:text-coral transition-colors"
               title="Sign out"
             >
               <LogOut size={16} />
@@ -85,9 +86,12 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden bg-quiet-bg">
         <Outlet />
       </main>
+
+      {/* Global AI co-pilot — available on every page */}
+      <CoPilot />
     </div>
   );
 }

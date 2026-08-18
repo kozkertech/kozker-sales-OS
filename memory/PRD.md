@@ -32,6 +32,7 @@ Automated engagement (Email + WhatsApp sequences, tiered autonomy) · AI pipelin
 - **Team invites**: managers invite reps via real Resend email; /accept-invite flow creates rep in same workspace. Members + pending invites UI.
 - **Sequence builder**: Email + WhatsApp steps, triggers (manual/no_reply/stage/link), autonomy (approval-gated default / auto). Enroll → AI-drafts message → Approvals queue → approve sends REAL email (Resend) / MOCKED WhatsApp.
 - Two full E2E test passes: iteration_1 18/18, iteration_2 25/25 backend + 8/8 frontend.
+- **UI refresh (2026-06)**: inverted theme — left nav sidebar always DARK (operational-*), ALL content views LIGHT (quiet-*). AI chat moved out of dashboard into a GLOBAL co-pilot (`components/CoPilot.jsx`): floating trigger (bottom-right) + slide-in right panel, available on every page. Dashboard rewritten as light metrics view. Verified iteration_4 frontend 100%.
 
 ## Backlog (prioritized)
 - P1: Background scheduler to actually fire time/stage/event triggers (currently manual enroll). Consider .emergent/crons.yml.

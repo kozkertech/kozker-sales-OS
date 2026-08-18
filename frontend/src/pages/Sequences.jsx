@@ -33,11 +33,11 @@ export default function Sequences() {
   };
 
   return (
-    <div className="op-zone h-full flex flex-col bg-operational-bg text-operational-text overflow-y-auto">
-      <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-operational-border">
+    <div className="h-full flex flex-col bg-quiet-bg text-quiet-text overflow-y-auto">
+      <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-quiet-border">
         <div>
           <h1 className="font-display font-medium text-xl">Sequences</h1>
-          <span className="font-mono text-xs text-operational-muted">Email + WhatsApp follow-ups · human approval before send</span>
+          <span className="font-mono text-xs text-quiet-muted">Email + WhatsApp follow-ups · human approval before send</span>
         </div>
         <button
           data-testid="new-sequence-btn"
@@ -50,48 +50,48 @@ export default function Sequences() {
 
       <div className="p-6 space-y-4 max-w-4xl w-full">
         {sequences.length === 0 && (
-          <div className="border border-operational-border rounded-sm p-10 text-center">
+          <div className="border border-quiet-border rounded-sm p-10 text-center">
             <Send size={22} className="text-coral mx-auto mb-3" />
-            <p className="font-body text-sm text-operational-muted">No sequences yet. Build one to start automating follow-ups.</p>
+            <p className="font-body text-sm text-quiet-muted">No sequences yet. Build one to start automating follow-ups.</p>
           </div>
         )}
         {sequences.map((s) => (
-          <div key={s.id} className="border border-operational-border rounded-sm p-5" data-testid="sequence-card">
+          <div key={s.id} className="border border-quiet-border rounded-sm p-5" data-testid="sequence-card">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-display font-medium text-base">{s.name}</h3>
                   <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm border ${
-                    s.status === "active" ? "border-coral text-coral" : "border-operational-border text-operational-muted"
+                    s.status === "active" ? "border-coral text-coral" : "border-quiet-border text-quiet-muted"
                   }`}>{s.status}</span>
                   {s.autonomy === "auto" ? (
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-operational-muted flex items-center gap-1">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted flex items-center gap-1">
                       <Zap size={10} /> auto-send
                     </span>
                   ) : (
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-operational-muted">approval-gated</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted">approval-gated</span>
                   )}
                 </div>
-                <div className="font-mono text-xs text-operational-muted mt-1">
+                <div className="font-mono text-xs text-quiet-muted mt-1">
                   trigger: {TRIGGERS.find((t) => t.value === s.trigger_type)?.label || s.trigger_type} · {s.enrolled || 0} enrolled
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => toggle(s)} data-testid="toggle-sequence" className="text-operational-muted hover:text-operational-text" title={s.status === "active" ? "Pause" : "Activate"}>
+                <button onClick={() => toggle(s)} data-testid="toggle-sequence" className="text-quiet-muted hover:text-quiet-text" title={s.status === "active" ? "Pause" : "Activate"}>
                   {s.status === "active" ? <Pause size={16} /> : <Play size={16} />}
                 </button>
-                <button onClick={() => remove(s)} className="text-operational-muted hover:text-coral"><Trash2 size={16} /></button>
+                <button onClick={() => remove(s)} className="text-quiet-muted hover:text-coral"><Trash2 size={16} /></button>
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap mb-4">
               {s.steps.map((st, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  {i > 0 && <span className="font-mono text-xs text-operational-muted">→</span>}
-                  <div className="flex items-center gap-2 border border-operational-border rounded-sm px-3 py-1.5">
+                  {i > 0 && <span className="font-mono text-xs text-quiet-muted">→</span>}
+                  <div className="flex items-center gap-2 border border-quiet-border rounded-sm px-3 py-1.5">
                     {st.channel === "email" ? <Mail size={13} className="text-coral" /> : <MessageCircle size={13} className="text-coral" />}
                     <span className="font-body text-xs">{st.channel}</span>
-                    <span className="font-mono text-[10px] text-operational-muted">+{st.delay_days}d</span>
+                    <span className="font-mono text-[10px] text-quiet-muted">+{st.delay_days}d</span>
                   </div>
                 </div>
               ))}
@@ -100,7 +100,7 @@ export default function Sequences() {
             <button
               data-testid="enroll-btn"
               onClick={() => setEnrollFor(s)}
-              className="flex items-center gap-2 bg-operational-surface hover:bg-operational-border border border-operational-border text-operational-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+              className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
             >
               <UserPlus size={14} /> Enroll a contact
             </button>
@@ -147,29 +147,29 @@ function SequenceBuilder({ onClose, onCreated }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <div className="op-zone w-full max-w-xl bg-operational-bg border border-operational-border rounded-sm sm-fade-up max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="sequence-builder">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-operational-border sticky top-0 bg-operational-bg">
+      <div className="w-full max-w-xl bg-quiet-bg border border-quiet-border rounded-sm sm-fade-up max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="sequence-builder">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-quiet-border sticky top-0 bg-quiet-bg">
           <h3 className="font-display font-medium text-lg">New sequence</h3>
-          <button onClick={onClose} className="text-operational-muted hover:text-operational-text"><X size={18} /></button>
+          <button onClick={onClose} className="text-quiet-muted hover:text-quiet-text"><X size={18} /></button>
         </div>
         <div className="p-5 space-y-5">
           <div>
-            <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Name</label>
+            <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Name</label>
             <input data-testid="sequence-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="New Lead Nurture"
-              className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
+              className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Trigger</label>
+              <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Trigger</label>
               <select data-testid="sequence-trigger" value={trigger} onChange={(e) => setTrigger(e.target.value)}
-                className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
+                className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
                 {TRIGGERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Autonomy</label>
+              <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Autonomy</label>
               <select data-testid="sequence-autonomy" value={autonomy} onChange={(e) => setAutonomy(e.target.value)}
-                className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
+                className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
                 <option value="approval">Approval-gated (recommended)</option>
                 <option value="auto">Auto-send</option>
               </select>
@@ -179,35 +179,35 @@ function SequenceBuilder({ onClose, onCreated }) {
           {autonomy === "auto" && (
             <div className="flex items-start gap-2 border border-coral/40 bg-coral-subtle rounded-sm px-3 py-2">
               <AlertTriangle size={14} className="text-coral mt-0.5" />
-              <p className="font-body text-xs text-operational-text">
+              <p className="font-body text-xs text-quiet-text">
                 Auto-send fires drafts without review. Off by default — approval-gated keeps a human in the loop.
               </p>
             </div>
           )}
 
           <div>
-            <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Steps</label>
+            <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Steps</label>
             <div className="space-y-3">
               {steps.map((st, i) => (
-                <div key={i} className="border border-operational-border rounded-sm p-3 relative" data-testid="sequence-step">
+                <div key={i} className="border border-quiet-border rounded-sm p-3 relative" data-testid="sequence-step">
                   {steps.length > 1 && (
-                    <button onClick={() => removeStep(i)} className="absolute top-2 right-2 text-operational-muted hover:text-coral"><X size={13} /></button>
+                    <button onClick={() => removeStep(i)} className="absolute top-2 right-2 text-quiet-muted hover:text-coral"><X size={13} /></button>
                   )}
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <select value={st.channel} onChange={(e) => setStep(i, "channel", e.target.value)}
-                      className="bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
+                      className="bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
                       <option value="email">email</option>
                       <option value="whatsapp">whatsapp (mock)</option>
                     </select>
                     <input type="number" min="0" value={st.delay_days} onChange={(e) => setStep(i, "delay_days", e.target.value)} placeholder="delay days"
-                      className="bg-operational-surface border border-operational-border text-operational-text font-mono text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
+                      className="bg-quiet-surface border border-quiet-border text-quiet-text font-mono text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
                   </div>
                   {st.channel === "email" && (
                     <input value={st.subject} onChange={(e) => setStep(i, "subject", e.target.value)} placeholder="Email subject"
-                      className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-2 py-1.5 mb-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
+                      className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-2 py-1.5 mb-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
                   )}
                   <input value={st.ai_prompt} onChange={(e) => setStep(i, "ai_prompt", e.target.value)} placeholder="AI message goal, e.g. friendly first touch referencing their company"
-                    className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
+                    className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral" />
                 </div>
               ))}
             </div>
@@ -247,19 +247,19 @@ function EnrollDialog({ sequence, contacts, onClose, onDone }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <div className="op-zone w-full max-w-sm bg-operational-bg border border-operational-border rounded-sm sm-fade-up" onClick={(e) => e.stopPropagation()} data-testid="enroll-dialog">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-operational-border">
+      <div className="w-full max-w-sm bg-quiet-bg border border-quiet-border rounded-sm sm-fade-up" onClick={(e) => e.stopPropagation()} data-testid="enroll-dialog">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-quiet-border">
           <h3 className="font-display font-medium text-base">Enroll in "{sequence.name}"</h3>
-          <button onClick={onClose} className="text-operational-muted hover:text-operational-text"><X size={18} /></button>
+          <button onClick={onClose} className="text-quiet-muted hover:text-quiet-text"><X size={18} /></button>
         </div>
         <div className="p-5">
-          <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Contact</label>
+          <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Contact</label>
           <select data-testid="enroll-contact" value={cid} onChange={(e) => setCid(e.target.value)}
-            className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
+            className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral">
             <option value="">Select a contact…</option>
             {contacts.map((c) => <option key={c.id} value={c.id}>{c.data.name} — {c.data.email}</option>)}
           </select>
-          <p className="font-body text-xs text-operational-muted mb-4">
+          <p className="font-body text-xs text-quiet-muted mb-4">
             AI will draft the first {sequence.steps[0]?.channel} message. It waits in Approvals for your review before sending.
           </p>
           <button data-testid="confirm-enroll" onClick={enroll} disabled={busy || !cid}

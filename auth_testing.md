@@ -13,7 +13,7 @@ Verify bcrypt hash starts with `$2b$`. Index on users.email unique.
 
 ## API
 ```
-API=https://ai-engage-7.preview.emergentagent.com
+API=https://salesmind-crm.preview.emergentagent.com
 curl -c c.txt -X POST $API/api/auth/login -H "Content-Type: application/json" -d '{"email":"govind.developer@kozker.com","password":"SalesMind2026!"}'
 curl -b c.txt $API/api/auth/me
 curl -b c.txt "$API/api/records?object_type=contact"

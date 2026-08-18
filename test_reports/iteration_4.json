@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only UI refinement test (dark sidebar + light content + global AI co-pilot). Logged in as demo manager, verified sidebar dark bg (rgb(26,25,24)) and main content light bg (rgb(249,248,246)) across all 8 nav pages (Overview, Contacts, Companies, Deals, Sequences, Approvals, Team, Audit). Dashboard renders 4 metric cards ($84,000 Open pipeline, $36,000 Won, 4 Contacts, 4 Companies), 'DEALS BY STAGE' distribution, AI-generated fields callout (7 fields), and 'RECENT ACTIVITY' feed. Chat is NOT embedded on dashboard. Floating copilot-trigger visible bottom-right on ALL pages. Clicking trigger opens copilot-panel (slide-in from right, white bg) with header 'Ask your pipeline anything', 3 suggestion chips, chat-input, chat-send, copilot-close. Sent 'What is my total pipeline value?' and received a streamed Gemini response within ~6s ('Your total active pipeline value is $84,000 across 3 open deals...'). Close button dismisses panel and trigger reappears. No blocking console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AIChatPanel: chat streams raw response body chunks assuming they map 1:1 to text; works with current backend but not resilient if server switches to SSE/JSON-lines framing.",
+    "CoPilot: panel is always mounted (kept in DOM for animation) — is_visible returns true even when translated off-screen. Consider aria-hidden when closed for a11y.",
+    "AppShell.jsx uses hardcoded NAV list; team item filtered by managerOnly — fine, no issue."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested", "frontend": "100%"},
+  "test_credentials": "demo@salesmind.app / Demo1234! (manager) — worked",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "UI theme refactor verified end-to-end. Sidebar uses operational-* (dark) tokens, main + all pages use quiet-* (light) tokens. Global CoPilot lives in AppShell so it appears on every authenticated page. Chat endpoint POST /api/chat streams text; response arrives in ~5-6s for the demo workspace."
+}

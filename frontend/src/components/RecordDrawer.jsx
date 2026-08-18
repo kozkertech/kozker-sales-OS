@@ -5,7 +5,7 @@ import { X, Sparkles, Loader2, Clock } from "lucide-react";
 
 function Field({ field, value, onChange }) {
   const base =
-    "w-full bg-operational-surface border border-operational-border text-operational-text px-3 py-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral transition-colors";
+    "w-full bg-quiet-surface border border-quiet-border text-quiet-text px-3 py-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral transition-colors";
   if (field.type === "select") {
     return (
       <select className={`${base} font-body text-sm`} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={`field-${field.key}`}>
@@ -91,13 +91,13 @@ export default function RecordDrawer({ record, fields, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
       <div
-        className="op-zone w-full max-w-md bg-operational-bg border-l border-operational-border h-full flex flex-col sm-fade-up"
+        className="w-full max-w-md bg-quiet-bg border-l border-quiet-border h-full flex flex-col sm-fade-up"
         onClick={(e) => e.stopPropagation()}
         data-testid="record-drawer"
       >
-        <div className="h-16 shrink-0 px-5 flex items-center justify-between border-b border-operational-border">
-          <h3 className="font-display font-medium text-lg text-operational-text truncate">{heading}</h3>
-          <button onClick={onClose} className="text-operational-muted hover:text-operational-text" data-testid="drawer-close">
+        <div className="h-16 shrink-0 px-5 flex items-center justify-between border-b border-quiet-border">
+          <h3 className="font-display font-medium text-lg text-quiet-text truncate">{heading}</h3>
+          <button onClick={onClose} className="text-quiet-muted hover:text-quiet-text" data-testid="drawer-close">
             <X size={18} />
           </button>
         </div>
@@ -105,7 +105,7 @@ export default function RecordDrawer({ record, fields, onClose, onSaved }) {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {fields.map((f) => (
             <div key={f.id}>
-              <label className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wider text-operational-muted mb-1.5">
+              <label className="flex items-center gap-1.5 font-body text-xs uppercase tracking-wider text-quiet-muted mb-1.5">
                 {f.ai_generated && <Sparkles size={11} className="text-coral" />}
                 {f.label}
                 {f.ai_generated && (
@@ -124,8 +124,8 @@ export default function RecordDrawer({ record, fields, onClose, onSaved }) {
             </div>
           ))}
 
-          <div className="pt-4 border-t border-operational-border">
-            <div className="flex items-center gap-2 font-body text-xs uppercase tracking-wider text-operational-muted mb-3">
+          <div className="pt-4 border-t border-quiet-border">
+            <div className="flex items-center gap-2 font-body text-xs uppercase tracking-wider text-quiet-muted mb-3">
               <Clock size={12} /> Activity
             </div>
             <div className="flex gap-2 mb-4">
@@ -135,30 +135,30 @@ export default function RecordDrawer({ record, fields, onClose, onSaved }) {
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addNote()}
                 placeholder="Add a note…"
-                className="flex-1 bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                className="flex-1 bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
               />
-              <button onClick={addNote} data-testid="add-note-btn" className="bg-operational-surface hover:bg-operational-border border border-operational-border text-operational-text font-body text-sm px-3 rounded-sm transition-colors">
+              <button onClick={addNote} data-testid="add-note-btn" className="bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 rounded-sm transition-colors">
                 Add
               </button>
             </div>
             <div className="space-y-3">
               {activities.map((a) => (
                 <div key={a.id} className="flex gap-2.5">
-                  <span className={`mt-1.5 w-1.5 h-1.5 rounded-sm shrink-0 ${a.type === "ai" ? "bg-coral" : "bg-operational-muted"}`} />
+                  <span className={`mt-1.5 w-1.5 h-1.5 rounded-sm shrink-0 ${a.type === "ai" ? "bg-coral" : "bg-quiet-muted"}`} />
                   <div>
-                    <p className="font-body text-sm text-operational-text">{a.content}</p>
-                    <p className="font-mono text-[10px] text-operational-muted">
+                    <p className="font-body text-sm text-quiet-text">{a.content}</p>
+                    <p className="font-mono text-[10px] text-quiet-muted">
                       {new Date(a.created_at).toLocaleString()}
                     </p>
                   </div>
                 </div>
               ))}
-              {activities.length === 0 && <p className="font-body text-sm text-operational-muted">No activity yet.</p>}
+              {activities.length === 0 && <p className="font-body text-sm text-quiet-muted">No activity yet.</p>}
             </div>
           </div>
         </div>
 
-        <div className="p-4 border-t border-operational-border">
+        <div className="p-4 border-t border-quiet-border">
           <button
             data-testid="save-record-btn"
             onClick={save}

@@ -105,19 +105,19 @@ export default function Records({ objectType, title }) {
   };
 
   return (
-    <div className="op-zone h-full flex flex-col bg-operational-bg text-operational-text">
+    <div className="h-full flex flex-col bg-quiet-bg text-quiet-text">
       {/* header */}
-      <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-operational-border">
+      <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-quiet-border">
         <div>
           <h1 className="font-display font-medium text-xl">{title}</h1>
-          <span className="font-mono text-xs text-operational-muted">{records.length} rows · {fields.length} fields</span>
+          <span className="font-mono text-xs text-quiet-muted">{records.length} rows · {fields.length} fields</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             data-testid="suggest-fields-btn"
             onClick={runSuggest}
             disabled={suggesting}
-            className="flex items-center gap-2 bg-operational-surface hover:bg-operational-border border border-operational-border text-operational-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+            className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
           >
             {suggesting ? <Loader2 size={15} className="animate-spin" /> : <Lightbulb size={15} className="text-coral" />}
             Suggest fields
@@ -125,7 +125,7 @@ export default function Records({ objectType, title }) {
           <button
             data-testid="add-field-btn"
             onClick={() => setShowBuilder(true)}
-            className="flex items-center gap-2 bg-operational-surface hover:bg-operational-border border border-operational-border text-operational-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+            className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
           >
             <Columns3 size={15} /> Add field
           </button>
@@ -140,7 +140,7 @@ export default function Records({ objectType, title }) {
       </div>
 
       {suggestions.length > 0 && (
-        <div className="px-6 py-3 border-b border-operational-border bg-operational-surface flex items-center gap-3 flex-wrap">
+        <div className="px-6 py-3 border-b border-quiet-border bg-quiet-surface flex items-center gap-3 flex-wrap">
           <span className="font-mono text-[10px] uppercase tracking-wider text-coral">AI suggests</span>
           {suggestions.map((s, i) => (
             <button
@@ -152,13 +152,13 @@ export default function Records({ objectType, title }) {
                 load();
                 toast.success(`Added ${s.label}`);
               }}
-              className="flex items-center gap-1.5 border border-operational-border hover:border-coral text-operational-text font-body text-xs px-2.5 py-1 rounded-sm transition-colors"
+              className="flex items-center gap-1.5 border border-quiet-border hover:border-coral text-quiet-text font-body text-xs px-2.5 py-1 rounded-sm transition-colors"
               title={s.reason}
             >
-              <Plus size={12} /> {s.label} <span className="font-mono text-operational-muted">{s.type}</span>
+              <Plus size={12} /> {s.label} <span className="font-mono text-quiet-muted">{s.type}</span>
             </button>
           ))}
-          <button onClick={() => setSuggestions([])} className="ml-auto font-body text-xs text-operational-muted hover:text-operational-text">
+          <button onClick={() => setSuggestions([])} className="ml-auto font-body text-xs text-quiet-muted hover:text-quiet-text">
             dismiss
           </button>
         </div>
@@ -167,15 +167,15 @@ export default function Records({ objectType, title }) {
       {/* table */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="p-6 font-mono text-sm text-operational-muted sm-pulse">loading…</div>
+          <div className="p-6 font-mono text-sm text-quiet-muted sm-pulse">loading…</div>
         ) : (
           <table className="w-full border-collapse" data-testid="records-table">
-            <thead className="sticky top-0 bg-operational-surface z-10">
+            <thead className="sticky top-0 bg-quiet-surface z-10">
               <tr>
                 {fields.map((f) => (
                   <th
                     key={f.id}
-                    className={`text-left font-body text-[11px] uppercase tracking-wider text-operational-muted font-medium px-4 py-2.5 border-b border-r border-operational-border whitespace-nowrap ${
+                    className={`text-left font-body text-[11px] uppercase tracking-wider text-quiet-muted font-medium px-4 py-2.5 border-b border-r border-quiet-border whitespace-nowrap ${
                       f.ai_generated ? "border-t-2 border-t-coral" : ""
                     }`}
                   >
@@ -185,7 +185,7 @@ export default function Records({ objectType, title }) {
                       {!f.core && (
                         <button
                           onClick={() => deleteField(f)}
-                          className="opacity-0 group-hover:opacity-100 text-operational-muted hover:text-coral transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-quiet-muted hover:text-coral transition-opacity"
                           data-testid={`delete-field-${f.key}`}
                         >
                           <Trash2 size={11} />
@@ -194,7 +194,7 @@ export default function Records({ objectType, title }) {
                     </span>
                   </th>
                 ))}
-                <th className="px-4 py-2.5 border-b border-operational-border w-10" />
+                <th className="px-4 py-2.5 border-b border-quiet-border w-10" />
               </tr>
             </thead>
             <tbody>
@@ -202,7 +202,7 @@ export default function Records({ objectType, title }) {
                 <tr
                   key={r.id}
                   onClick={() => setOpenRecord(r)}
-                  className="group hover:bg-operational-surface cursor-pointer transition-colors"
+                  className="group hover:bg-quiet-surface cursor-pointer transition-colors"
                   data-testid="record-row"
                 >
                   {fields.map((f) => {
@@ -212,12 +212,12 @@ export default function Records({ objectType, title }) {
                     return (
                       <td
                         key={f.id}
-                        className={`px-4 py-2.5 border-b border-r border-operational-border align-middle ${
+                        className={`px-4 py-2.5 border-b border-r border-quiet-border align-middle ${
                           isNum ? "font-mono text-sm text-right" : "font-body text-sm"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className={empty ? "text-operational-muted" : "text-operational-text"}>
+                          <span className={empty ? "text-quiet-muted" : "text-quiet-text"}>
                             {fmtCell(f, r.data[f.key])}
                           </span>
                           {f.ai_generated && empty && (
@@ -235,11 +235,11 @@ export default function Records({ objectType, title }) {
                       </td>
                     );
                   })}
-                  <td className="px-4 py-2.5 border-b border-operational-border text-center">
+                  <td className="px-4 py-2.5 border-b border-quiet-border text-center">
                     <button
                       data-testid="delete-record-btn"
                       onClick={(e) => removeRecord(r.id, e)}
-                      className="opacity-0 group-hover:opacity-100 text-operational-muted hover:text-coral transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 text-quiet-muted hover:text-coral transition-opacity"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -248,7 +248,7 @@ export default function Records({ objectType, title }) {
               ))}
               {records.length === 0 && (
                 <tr>
-                  <td colSpan={fields.length + 1} className="px-6 py-16 text-center font-body text-sm text-operational-muted">
+                  <td colSpan={fields.length + 1} className="px-6 py-16 text-center font-body text-sm text-quiet-muted">
                     No {title.toLowerCase()} yet. Create one to get started.
                   </td>
                 </tr>

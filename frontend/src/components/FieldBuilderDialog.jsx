@@ -85,23 +85,23 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div
-        className="op-zone w-full max-w-lg bg-operational-bg border border-operational-border rounded-sm sm-fade-up"
+        className="w-full max-w-lg bg-quiet-bg border border-quiet-border rounded-sm sm-fade-up"
         onClick={(e) => e.stopPropagation()}
         data-testid="field-builder-dialog"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-operational-border">
-          <h3 className="font-display font-medium text-lg text-operational-text">Add field · {objectType}</h3>
-          <button onClick={onClose} className="text-operational-muted hover:text-operational-text" data-testid="field-builder-close">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-quiet-border">
+          <h3 className="font-display font-medium text-lg text-quiet-text">Add field · {objectType}</h3>
+          <button onClick={onClose} className="text-quiet-muted hover:text-quiet-text" data-testid="field-builder-close">
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex border-b border-operational-border">
+        <div className="flex border-b border-quiet-border">
           <button
             data-testid="tab-ai"
             onClick={() => setTab("ai")}
             className={`flex items-center gap-2 px-5 py-3 font-body text-sm transition-colors ${
-              tab === "ai" ? "text-operational-text border-b-2 border-coral" : "text-operational-muted"
+              tab === "ai" ? "text-quiet-text border-b-2 border-coral" : "text-quiet-muted"
             }`}
           >
             <Sparkles size={14} className="text-coral" /> Use AI
@@ -110,7 +110,7 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
             data-testid="tab-manual"
             onClick={() => setTab("manual")}
             className={`px-5 py-3 font-body text-sm transition-colors ${
-              tab === "manual" ? "text-operational-text border-b-2 border-coral" : "text-operational-muted"
+              tab === "manual" ? "text-quiet-text border-b-2 border-coral" : "text-quiet-muted"
             }`}
           >
             Manual
@@ -120,7 +120,7 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
         <div className="p-5">
           {tab === "ai" ? (
             <>
-              <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">
+              <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">
                 Describe what to track
               </label>
               <div className="flex gap-2 mb-4">
@@ -130,7 +130,7 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && runAI()}
                   placeholder="e.g. track renewal date and plan tier"
-                  className="flex-1 bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                  className="flex-1 bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
                 />
                 <button
                   data-testid="ai-field-generate"
@@ -144,17 +144,17 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
               </div>
 
               {model && (
-                <div className="font-mono text-[10px] uppercase tracking-wider text-operational-muted mb-3">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted mb-3">
                   routed to {model} · edit before committing
                 </div>
               )}
 
               <div className="space-y-3 max-h-72 overflow-y-auto">
                 {proposed.map((f, i) => (
-                  <div key={i} className="border border-operational-border rounded-sm p-3 relative" data-testid="proposed-field">
+                  <div key={i} className="border border-quiet-border rounded-sm p-3 relative" data-testid="proposed-field">
                     <button
                       onClick={() => removeProposed(i)}
-                      className="absolute top-2 right-2 text-operational-muted hover:text-coral"
+                      className="absolute top-2 right-2 text-quiet-muted hover:text-coral"
                     >
                       <X size={14} />
                     </button>
@@ -162,12 +162,12 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
                       <input
                         value={f.label}
                         onChange={(e) => editProposed(i, "label", e.target.value)}
-                        className="bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                        className="bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
                       />
                       <select
                         value={f.type}
                         onChange={(e) => editProposed(i, "type", e.target.value)}
-                        className="bg-operational-surface border border-operational-border text-operational-text font-mono text-xs px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                        className="bg-quiet-surface border border-quiet-border text-quiet-text font-mono text-xs px-2 py-1.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
                       >
                         {TYPES.map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -179,10 +179,10 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
                         value={f.options}
                         onChange={(e) => editProposed(i, "options", e.target.value)}
                         placeholder="comma,separated,options"
-                        className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-xs px-2 py-1.5 rounded-sm mb-2 focus:outline-none focus:ring-1 focus:ring-coral"
+                        className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-xs px-2 py-1.5 rounded-sm mb-2 focus:outline-none focus:ring-1 focus:ring-coral"
                       />
                     )}
-                    {f.reason && <p className="font-body text-xs text-operational-muted">{f.reason}</p>}
+                    {f.reason && <p className="font-body text-xs text-quiet-muted">{f.reason}</p>}
                   </div>
                 ))}
               </div>
@@ -201,19 +201,19 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
             </>
           ) : (
             <>
-              <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Label</label>
+              <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Label</label>
               <input
                 data-testid="manual-field-label"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
               />
-              <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">Type</label>
+              <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">Type</label>
               <select
                 data-testid="manual-field-type"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full bg-operational-surface border border-operational-border text-operational-text font-mono text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-mono text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
               >
                 {TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
@@ -221,14 +221,14 @@ export default function FieldBuilderDialog({ objectType, onClose, onCreated }) {
               </select>
               {type === "select" && (
                 <>
-                  <label className="block font-body text-xs uppercase tracking-wider text-operational-muted mb-2">
+                  <label className="block font-body text-xs uppercase tracking-wider text-quiet-muted mb-2">
                     Options (comma separated)
                   </label>
                   <input
                     data-testid="manual-field-options"
                     value={options}
                     onChange={(e) => setOptions(e.target.value)}
-                    className="w-full bg-operational-surface border border-operational-border text-operational-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
+                    className="w-full bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2.5 mb-4 rounded-sm focus:outline-none focus:ring-1 focus:ring-coral"
                   />
                 </>
               )}

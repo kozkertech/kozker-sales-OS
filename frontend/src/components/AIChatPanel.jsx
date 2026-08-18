@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { API } from "@/lib/api";
-import { Sparkles, ArrowUp } from "lucide-react";
+import { Sparkles, ArrowUp, X } from "lucide-react";
 
 const SUGGESTIONS = [
   "What's my total pipeline value?",
@@ -8,7 +8,7 @@ const SUGGESTIONS = [
   "Summarize my qualified contacts",
 ];
 
-export default function AIChatPanel() {
+export default function AIChatPanel({ onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -57,9 +57,19 @@ export default function AIChatPanel() {
 
   return (
     <div className="flex flex-col h-full" data-testid="ai-chat-panel">
-      <div className="px-5 py-4 border-b border-quiet-border flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-quiet-border flex items-center gap-2 shrink-0">
         <Sparkles size={16} className="text-coral" />
         <h3 className="font-display font-medium text-base">Ask your pipeline anything</h3>
+        {onClose && (
+          <button
+            onClick={onClose}
+            data-testid="copilot-close"
+            className="ml-auto text-quiet-muted hover:text-quiet-text transition-colors"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -86,7 +96,7 @@ export default function AIChatPanel() {
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] bg-operational-bg text-operational-text font-body text-sm px-3 py-2 rounded-sm">
+              <div className="max-w-[85%] bg-quiet-surface border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm rounded-tr-none">
                 {m.content}
               </div>
             </div>
