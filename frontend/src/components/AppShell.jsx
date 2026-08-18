@@ -1,0 +1,90 @@
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { LayoutDashboard, Users, Building2, Kanban, ScrollText, LogOut } from "lucide-react";
+
+const NAV = [
+  { to: "/", label: "Overview", icon: LayoutDashboard, end: true, testid: "nav-overview" },
+  { to: "/contacts", label: "Contacts", icon: Users, testid: "nav-contacts" },
+  { to: "/companies", label: "Companies", icon: Building2, testid: "nav-companies" },
+  { to: "/deals", label: "Deals", icon: Kanban, testid: "nav-deals" },
+  { to: "/audit", label: "Audit log", icon: ScrollText, testid: "nav-audit" },
+];
+
+export default function AppShell() {
+  const { user, logout } = useAuth();
+  const nav = useNavigate();
+
+  const initials = (user?.name || "?")
+    .split(" ")
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div className="h-screen flex bg-quiet-bg overflow-hidden">
+      {/* Nav rail — quiet */}
+      <aside className="w-60 shrink-0 bg-quiet-surface border-r border-quiet-border flex flex-col">
+        <div className="px-5 h-16 flex items-center gap-2 border-b border-quiet-border">
+          <span className="w-2.5 h-2.5 bg-coral rounded-sm" />
+          <span className="font-display font-semibold text-lg tracking-tight">SalesMind</span>
+        </div>
+
+        <div className="px-4 py-3 border-b border-quiet-border">
+          <div className="font-body text-xs uppercase tracking-wider text-quiet-muted">Workspace</div>
+          <div className="font-display font-medium text-sm mt-0.5 truncate" data-testid="workspace-name">
+            {user?.workspace_name}
+          </div>
+        </div>
+
+        <nav className="flex-1 py-3">
+          {NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              data-testid={n.testid}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-5 py-2.5 font-body text-sm transition-colors ${
+                  isActive
+                    ? "text-quiet-text bg-quiet-bg border-l-2 border-coral"
+                    : "text-quiet-muted hover:text-quiet-text border-l-2 border-transparent"
+                }`
+              }
+            >
+              <n.icon size={17} strokeWidth={1.75} />
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="border-t border-quiet-border p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-sm bg-operational-bg text-operational-text flex items-center justify-center font-mono text-xs">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-body text-sm text-quiet-text truncate">{user?.name}</div>
+              <div className="font-mono text-[11px] text-quiet-muted uppercase">{user?.role}</div>
+            </div>
+            <button
+              data-testid="logout-btn"
+              onClick={async () => {
+                await logout();
+                nav("/login");
+              }}
+              className="text-quiet-muted hover:text-coral transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 overflow-hidden">
+        <Outlet />
+      </main>
+    </div>
+  );
+}

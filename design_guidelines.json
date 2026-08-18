@@ -1,0 +1,169 @@
+{
+  "project_name": "SalesMind",
+  "theme": "Restrained Warm Monochrome & Coral Signal",
+  "typography": {
+    "font_families": {
+      "display": {
+        "family": "IBM Plex Sans",
+        "usage": "All Headings (H1-H6), structural titles, modal titles.",
+        "css_variable": "font-display"
+      },
+      "body": {
+        "family": "DM Sans",
+        "usage": "Body text, UI elements, navigation, narrative text, form labels.",
+        "css_variable": "font-body"
+      },
+      "mono": {
+        "family": "JetBrains Mono",
+        "usage": "Every number, data points, stats, timestamps, metrics, audit logs.",
+        "css_variable": "font-mono"
+      }
+    },
+    "hierarchy_rules": {
+      "h1": "text-3xl sm:text-4xl tracking-tight font-display font-medium",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-display font-medium",
+      "h3": "text-xl font-display font-medium",
+      "body": "text-sm sm:text-base font-body leading-relaxed",
+      "data_point": "text-sm font-mono tracking-tight"
+    }
+  },
+  "colors": {
+    "palette": {
+      "quiet": {
+        "description": "Light, narrative zone (~60% of layout). Warm-tinted off-whites, never cold grey.",
+        "bg": "#F9F8F6",
+        "surface": "#F2F0EB",
+        "border": "#E5E2DC",
+        "text": "#2C2B29",
+        "text_muted": "#73706A"
+      },
+      "operational": {
+        "description": "Dark, data zone (~40% of layout). Warm espresso/black, never cold grey.",
+        "bg": "#1A1918",
+        "surface": "#242322",
+        "border": "#33312F",
+        "text": "#E6E4DF",
+        "text_muted": "#999690"
+      },
+      "accent": {
+        "description": "One coral accent signal per composition. Use strictly for primary CTA or critical AI signal.",
+        "primary": "#F05D48",
+        "hover": "#D94D3A",
+        "subtle": "rgba(240, 93, 72, 0.1)"
+      }
+    },
+    "rules": [
+      "NO DECORATIVE COLORS. Everything communicates state or hierarchy.",
+      "Never use generic default grays (slate, gray, zinc). Stick to the warm-tinted variables.",
+      "The coral accent MUST be the only vivid color on the screen."
+    ]
+  },
+  "layouts": {
+    "global_architecture": "Two-Register Split Screen. The screen is physically split into two distinct thematic zones.",
+    "zones": {
+      "quiet_field": {
+        "width": "w-full lg:w-[60%]",
+        "theme": "Light Theme (Quiet palette)",
+        "content": "Navigation, Activity timeline, AI Chat panel ('Ask your pipeline anything'), high-level narratives, Contacts overview."
+      },
+      "operational_zone": {
+        "width": "w-full lg:w-[40%]",
+        "theme": "Dark Theme (Operational palette)",
+        "content": "Data-dense tables, Dynamic Field builder ('Use AI' column), Deal pipelines (Kanban), precise data editing, audit logs."
+      }
+    },
+    "spacing": "Dense but legible. Use standard Tailwind spacing but rely on strict borders rather than massive padding for separation. 1px borders define structure."
+  },
+  "components": {
+    "tables_and_grids": {
+      "style": "Data-dense, Clay-inspired, highly operational.",
+      "headers": "font-body text-xs uppercase tracking-wider text-muted border-b border-border.",
+      "cells": "font-mono text-sm (if numbers/data) or font-body text-sm (if text).",
+      "ai_column": "The 'Use AI' column should have a subtle coral top border or indicator to signify dynamic enrichment.",
+      "borders": "1px solid (Quiet or Operational border color based on zone). No rounded corners on internal table cells."
+    },
+    "buttons": {
+      "primary": "bg-accent-primary text-white font-body font-medium px-4 py-2 hover:bg-accent-hover transition-colors rounded-sm",
+      "secondary_quiet": "bg-quiet-surface text-quiet-text border border-quiet-border hover:bg-quiet-border transition-colors rounded-sm",
+      "secondary_operational": "bg-operational-surface text-operational-text border border-operational-border hover:bg-operational-border transition-colors rounded-sm"
+    },
+    "kanban_board": {
+      "columns": "Strict vertical lanes with 1px borders.",
+      "cards": "Flat, non-elevated (no drop shadows). Rely on background color contrast and borders.",
+      "typography": "Deal values in JetBrains Mono. Titles in IBM Plex Sans."
+    },
+    "inputs_and_fields": {
+      "style": "Minimalist, matter-of-fact.",
+      "borders": "Bottom border only (flair-less) OR strict rectangle with 1px border. No heavy rounded corners.",
+      "focus": "ring-1 ring-accent-primary focus:outline-none"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": "DO NOT USE SHADOWS. The aesthetic is 'operational clarity built on restraint'. Use 1px borders and background contrast to separate elements.",
+    "borders": "Sharp or slightly rounded (rounded-sm max). 1px solid lines define all relationships.",
+    "glassmorphism": "Banned. Keep surfaces solid and matter-of-fact."
+  },
+  "motion": {
+    "philosophy": "Instantaneous and matter-of-fact. No decorative bouncing.",
+    "transitions": "Fast fades (150ms) for hover states. Snap transitions for structural changes."
+  },
+  "accessibility": {
+    "contrast": "Ensure strict APCA/WCAG AA compliance. Dark zone text must be #E6E4DF on #1A1918. Light zone text must be #2C2B29 on #F9F8F6.",
+    "testing": "All interactive elements MUST include a data-testid attribute (e.g., data-testid='ai-enrich-button')."
+  },
+  "image_urls": {
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMGF2YXRhcnxlbnwwfHx8fDE3ODcwODAxNTV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Male avatar for contacts/leads",
+        "category": "contact_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMGF2YXRhcnxlbnwwfHx8fDE3ODcwODAxNTV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Female avatar for contacts/leads",
+        "category": "contact_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMGF2YXRhcnxlbnwwfHx8fDE3ODcwODAxNTV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Female avatar for contacts/leads",
+        "category": "contact_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMGF2YXRhcnxlbnwwfHx8fDE3ODcwODAxNTV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Male avatar for contacts/leads",
+        "category": "contact_avatar"
+      }
+    ],
+    "logos": [
+      {
+        "url": "https://images.unsplash.com/photo-1690766636714-962f88aaa0a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwzfHxtaW5pbWFsJTIwdGVjaCUyMGNvbXBhbnklMjBsb2dvfGVufDB8fHx8MTc4NzA4MDE1NXww&ixlib=rb-4.1.0&q=85",
+        "description": "Minimal company logo (X shape)",
+        "category": "company_logo"
+      },
+      {
+        "url": "https://images.pexels.com/photos/15863044/pexels-photo-15863044.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Minimal company logo (OpenAI)",
+        "category": "company_logo"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1705988142466-e468bc654eeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxtaW5pbWFsJTIwdGVjaCUyMGNvbXBhbnklMjBsb2dvfGVufDB8fHx8MTc4NzA4MDE1NXww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract colorful logo pattern",
+        "category": "company_logo"
+      }
+    ]
+  },
+  "instructions_to_main_agent": {
+    "tech_stack": "React.js (use .jsx or .js files ONLY, NO .tsx/.ts), Tailwind CSS, Shadcn UI (adapted to JS).",
+    "theme_implementation": "Configure Tailwind config with custom colors 'quiet', 'operational', and 'coral' (accent). Create a rigid layout split where Left ~60% uses quiet palette and Right ~40% uses operational palette.",
+    "typography_implementation": "Import IBM Plex Sans, DM Sans, and JetBrains Mono from Google Fonts in index.css. Apply strictly based on the defined roles.",
+    "shadcn_customization": "Strip Shadcn components of rounded corners (make them sharp or max rounded-sm) and drop shadows. Override standard gray defaults with the custom warm monochrome palettes.",
+    "data_density": "Tables must be compact, padding reduced. Data operations feel like a terminal or sophisticated spreadsheet.",
+    "testing_ids": "Inject data-testid attributes on every interactive element (buttons, tabs, inputs, table rows).",
+    "universal_guidelines": [
+      "Avoid the generic 'AI slop' aesthetic. No emojis as icons. Use Phosphor Icons or Lucide.",
+      "Never center-align the main app container.",
+      "No transparent backgrounds for headers or dropdowns to preserve legibility.",
+      "Apply transitions only to specific properties (e.g., color, background), NEVER use 'transition-all'."
+    ]
+  }
+}
