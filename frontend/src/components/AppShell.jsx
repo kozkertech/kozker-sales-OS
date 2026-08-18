@@ -1,12 +1,15 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, Users, Building2, Kanban, ScrollText, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Building2, Kanban, ScrollText, LogOut, Send, CheckSquare, UserPlus } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true, testid: "nav-overview" },
   { to: "/contacts", label: "Contacts", icon: Users, testid: "nav-contacts" },
   { to: "/companies", label: "Companies", icon: Building2, testid: "nav-companies" },
   { to: "/deals", label: "Deals", icon: Kanban, testid: "nav-deals" },
+  { to: "/sequences", label: "Sequences", icon: Send, testid: "nav-sequences" },
+  { to: "/approvals", label: "Approvals", icon: CheckSquare, testid: "nav-approvals" },
+  { to: "/team", label: "Team", icon: UserPlus, testid: "nav-team", managerOnly: true },
   { to: "/audit", label: "Audit log", icon: ScrollText, testid: "nav-audit" },
 ];
 
@@ -37,8 +40,8 @@ export default function AppShell() {
           </div>
         </div>
 
-        <nav className="flex-1 py-3">
-          {NAV.map((n) => (
+        <nav className="flex-1 py-3 overflow-y-auto">
+          {NAV.filter((n) => !n.managerOnly || user?.role === "manager" || user?.role === "admin").map((n) => (
             <NavLink
               key={n.to}
               to={n.to}

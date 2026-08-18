@@ -21,6 +21,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, BeforeValidator, EmailStr, ConfigDict
 
 from llm import llm_complete, llm_stream, extract_json, model_label
+from email_service import send_email, invite_email_html, sequence_email_html
+
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # ----------------------------------------------------------------------------
 # Database
@@ -710,6 +713,511 @@ async def audit(user: dict = Depends(get_current_user)):
     return out
 
 
+def require_manager(user: dict):
+    if not is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager access required")
+
+
+# ----------------------------------------------------------------------------
+# Tasks
+# ----------------------------------------------------------------------------
+class TaskCreate(BaseModel):
+    title: str
+    due: Optional[str] = None
+    related_record_id: Optional[str] = None
+
+
+@api.get("/tasks")
+async def list_tasks(user: dict = Depends(get_current_user)):
+    scope = {"workspace_id": user["workspace_id"]}
+    if not is_manager(user):
+        scope["owner_id"] = user["id"]
+    cur = db.tasks.find(scope).sort("created_at", -1)
+    out = []
+    async for t in cur:
+        t["id"] = str(t["_id"])
+        t.pop("_id", None)
+        out.append(t)
+    return out
+
+
+async def _create_task(user: dict, title: str, related_record_id: Optional[str] = None, due: Optional[str] = None):
+    doc = {
+        "workspace_id": user["workspace_id"], "owner_id": user["id"], "owner_name": user["name"],
+        "title": title, "due": due, "related_record_id": related_record_id,
+        "status": "open", "created_at": now_iso(),
+    }
+    res = await db.tasks.insert_one(doc)
+    doc["id"] = str(res.inserted_id)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.post("/tasks")
+async def create_task_ep(body: TaskCreate, user: dict = Depends(get_current_user)):
+    task = await _create_task(user, body.title, body.related_record_id, body.due)
+    await log_audit(user, "task.create", f"task:{task['id']}", f"Created task '{body.title}'")
+    return task
+
+
+@api.put("/tasks/{task_id}")
+async def update_task(task_id: str, user: dict = Depends(get_current_user)):
+    t = await db.tasks.find_one({"_id": ObjectId(task_id), "workspace_id": user["workspace_id"]})
+    if not t:
+        raise HTTPException(status_code=404, detail="Not found")
+    new_status = "done" if t.get("status") == "open" else "open"
+    await db.tasks.update_one({"_id": t["_id"]}, {"$set": {"status": new_status}})
+    return {"ok": True, "status": new_status}
+
+
+# ----------------------------------------------------------------------------
+# Team & Invites
+# ----------------------------------------------------------------------------
+class InviteCreate(BaseModel):
+    email: EmailStr
+    role: str = "rep"
+
+
+class InviteAccept(BaseModel):
+    token: str
+    name: str
+    password: str
+
+
+@api.get("/team")
+async def team(user: dict = Depends(get_current_user)):
+    require_manager(user)
+    members = []
+    async for u in db.users.find({"workspace_id": user["workspace_id"]}):
+        members.append({"id": str(u["_id"]), "name": u["name"], "email": u["email"], "role": u["role"]})
+    return members
+
+
+@api.get("/invites")
+async def list_invites(user: dict = Depends(get_current_user)):
+    require_manager(user)
+    out = []
+    async for i in db.invites.find({"workspace_id": user["workspace_id"]}).sort("created_at", -1):
+        out.append({"id": str(i["_id"]), "email": i["email"], "role": i["role"],
+                    "status": i["status"], "created_at": i["created_at"]})
+    return out
+
+
+@api.post("/invites")
+async def create_invite(body: InviteCreate, user: dict = Depends(get_current_user)):
+    require_manager(user)
+    email = body.email.lower()
+    role = body.role if body.role in ("rep", "manager") else "rep"
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="A user with this email already exists")
+    token = secrets.token_urlsafe(32)
+    doc = {
+        "workspace_id": user["workspace_id"], "workspace_name": user.get("workspace_name", ""),
+        "email": email, "role": role, "token": token, "status": "pending",
+        "invited_by": user["name"],
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+        "created_at": now_iso(),
+    }
+    res = await db.invites.insert_one(doc)
+    accept_url = f"{FRONTEND_URL}/accept-invite?token={token}"
+    email_sent = True
+    try:
+        await send_email(
+            to=email,
+            subject=f"{user['name']} invited you to {user.get('workspace_name','SalesMind')}",
+            html=invite_email_html(user["name"], user.get("workspace_name", "SalesMind"), role, accept_url),
+        )
+    except Exception as e:
+        logger.error(f"invite email failed: {e}")
+        email_sent = False
+    await log_audit(user, "invite.create", email, f"Invited {email} as {role}")
+    return {"id": str(res.inserted_id), "email": email, "role": role, "status": "pending",
+            "email_sent": email_sent, "accept_url": accept_url}
+
+
+@api.delete("/invites/{invite_id}")
+async def delete_invite(invite_id: str, user: dict = Depends(get_current_user)):
+    require_manager(user)
+    await db.invites.delete_one({"_id": ObjectId(invite_id), "workspace_id": user["workspace_id"]})
+    return {"ok": True}
+
+
+@api.get("/invites/verify")
+async def verify_invite(token: str):
+    inv = await db.invites.find_one({"token": token, "status": "pending"})
+    if not inv or datetime.fromisoformat(inv["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=404, detail="Invitation is invalid or expired")
+    return {"email": inv["email"], "workspace_name": inv["workspace_name"], "role": inv["role"]}
+
+
+@api.post("/invites/accept")
+async def accept_invite(body: InviteAccept, response: Response):
+    inv = await db.invites.find_one({"token": body.token, "status": "pending"})
+    if not inv or datetime.fromisoformat(inv["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=404, detail="Invitation is invalid or expired")
+    if await db.users.find_one({"email": inv["email"]}):
+        raise HTTPException(status_code=400, detail="Account already exists")
+    doc = {
+        "name": body.name, "email": inv["email"], "password_hash": hash_password(body.password),
+        "role": inv["role"], "workspace_id": inv["workspace_id"], "workspace_name": inv["workspace_name"],
+        "created_at": now_iso(),
+    }
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    await db.invites.update_one({"_id": inv["_id"]}, {"$set": {"status": "accepted"}})
+    await _issue_session(response, doc)
+    return _public_user(doc)
+
+
+# ----------------------------------------------------------------------------
+# AI Agent — proposed actions with approval
+# ----------------------------------------------------------------------------
+class AgentPlanReq(BaseModel):
+    message: str
+
+
+async def _agent_context(user: dict) -> str:
+    scope = record_scope(user)
+    lines = []
+    async for r in db.records.find({**scope, "object_type": "deal"}).limit(40):
+        d = r["data"]
+        lines.append(f"deal id={str(r['_id'])} | {d.get('title')} | stage={d.get('stage')} | value={d.get('value')} | contact={d.get('contact')}")
+    async for r in db.records.find({**scope, "object_type": "contact"}).limit(40):
+        d = r["data"]
+        lines.append(f"contact id={str(r['_id'])} | {d.get('name')} | status={d.get('status')} | company={d.get('company')}")
+    return "\n".join(lines) or "No records."
+
+
+@api.post("/agent/plan")
+async def agent_plan(body: AgentPlanReq, user: dict = Depends(get_current_user)):
+    context = await _agent_context(user)
+    system = (
+        "You are SalesMind's action-planning agent. Convert the user's instruction into concrete CRM actions. "
+        "Use ONLY record ids present in the context. Return ONLY JSON: an array of actions. Each action is one of:\n"
+        '{"type":"create_task","title":str,"related_record_id":str|null,"description":str}\n'
+        '{"type":"update_deal","record_id":str,"stage":one of [Lead,Contacted,Proposal,Won,Lost],"description":str}\n'
+        '{"type":"add_note","record_id":str,"content":str,"description":str}\n'
+        "The 'description' is a short human-readable summary shown for approval. Max 5 actions. "
+        "If nothing actionable, return []."
+    )
+    prompt = f"CONTEXT (records):\n{context}\n\nINSTRUCTION: {body.message}"
+    raw = await llm_complete("agentic", system, prompt, session_id=f"agent-{user['id']}")
+    try:
+        actions = extract_json(raw)
+        if isinstance(actions, dict):
+            actions = actions.get("actions", [])
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not plan actions. Try rephrasing.")
+    created = []
+    for a in actions[:5]:
+        if not a.get("type"):
+            continue
+        doc = {
+            "workspace_id": user["workspace_id"], "actor_id": user["id"], "actor_name": user["name"],
+            "type": a["type"], "params": a, "description": a.get("description", a["type"]),
+            "status": "pending", "created_at": now_iso(),
+        }
+        res = await db.agent_actions.insert_one(doc)
+        doc["id"] = str(res.inserted_id)
+        doc.pop("_id", None)
+        created.append(doc)
+    await log_audit(user, "agent.plan", "agent", body.message[:120], ai_model=model_label("agentic"))
+    return {"actions": created, "model": model_label("agentic")}
+
+
+@api.get("/agent/actions")
+async def list_agent_actions(user: dict = Depends(get_current_user)):
+    q = {"workspace_id": user["workspace_id"], "status": "pending"}
+    if not is_manager(user):
+        q["actor_id"] = user["id"]
+    out = []
+    async for a in db.agent_actions.find(q).sort("created_at", -1):
+        a["id"] = str(a["_id"])
+        a.pop("_id", None)
+        out.append(a)
+    return out
+
+
+@api.post("/agent/actions/{action_id}/approve")
+async def approve_agent_action(action_id: str, user: dict = Depends(get_current_user)):
+    a = await db.agent_actions.find_one({"_id": ObjectId(action_id), "workspace_id": user["workspace_id"]})
+    if not a or a["status"] != "pending":
+        raise HTTPException(status_code=404, detail="Action not found")
+    if a["actor_id"] != user["id"] and not is_manager(user):
+        raise HTTPException(status_code=403, detail="Only the requester or a manager can approve this action")
+    p = a["params"]
+    result = ""
+    if a["type"] == "create_task":
+        await _create_task(user, p.get("title", "Task"), p.get("related_record_id"))
+        result = f"Task created: {p.get('title')}"
+    elif a["type"] == "update_deal":
+        r = await _get_owned_record(p["record_id"], user)
+        old = r["data"].get("stage")
+        r["data"]["stage"] = p.get("stage")
+        await db.records.update_one({"_id": r["_id"]}, {"$set": {"data": r["data"], "updated_at": now_iso()}})
+        await db.activities.insert_one({"workspace_id": user["workspace_id"], "record_id": p["record_id"],
+                                        "type": "stage", "content": f"AI action: stage {old} → {p.get('stage')}",
+                                        "created_at": now_iso()})
+        result = f"Deal moved to {p.get('stage')}"
+    elif a["type"] == "add_note":
+        await _get_owned_record(p["record_id"], user)
+        await db.activities.insert_one({"workspace_id": user["workspace_id"], "record_id": p["record_id"],
+                                        "type": "note", "content": p.get("content", ""), "actor": user["name"],
+                                        "created_at": now_iso()})
+        result = "Note added"
+    await db.agent_actions.update_one({"_id": a["_id"]}, {"$set": {"status": "approved", "resolved_at": now_iso()}})
+    await log_audit(user, "agent.approve", a["type"], result)
+    return {"ok": True, "result": result}
+
+
+@api.post("/agent/actions/{action_id}/reject")
+async def reject_agent_action(action_id: str, user: dict = Depends(get_current_user)):
+    a = await db.agent_actions.find_one({"_id": ObjectId(action_id), "workspace_id": user["workspace_id"]})
+    if not a:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if a["actor_id"] != user["id"] and not is_manager(user):
+        raise HTTPException(status_code=403, detail="Only the requester or a manager can reject this action")
+    await db.agent_actions.update_one(
+        {"_id": a["_id"]}, {"$set": {"status": "rejected", "resolved_at": now_iso()}})
+    await log_audit(user, "agent.reject", "agent", "Rejected proposed action")
+    return {"ok": True}
+
+
+# ----------------------------------------------------------------------------
+# Lead scoring / next-best-action
+# ----------------------------------------------------------------------------
+@api.post("/records/{record_id}/score")
+async def score_deal(record_id: str, user: dict = Depends(get_current_user)):
+    r = await _get_owned_record(record_id, user)
+    if r["object_type"] != "deal":
+        raise HTTPException(status_code=400, detail="Scoring is for deals")
+    system = (
+        "You are a sales analyst. Score this deal's likelihood to close from 0-100 and give ONE concise "
+        "next-best-action (max 12 words). Return ONLY JSON: "
+        '{"score":int,"next_action":str,"reason":str}'
+    )
+    prompt = f"Deal: {r['data']}"
+    raw = await llm_complete("cheap", system, prompt, session_id=f"score-{record_id}")
+    try:
+        parsed = extract_json(raw)
+        score = int(parsed.get("score", 0))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not score deal")
+    r["data"]["_score"] = max(0, min(100, score))
+    r["data"]["_next_action"] = parsed.get("next_action", "")
+    r["data"]["_score_reason"] = parsed.get("reason", "")
+    await db.records.update_one({"_id": r["_id"]}, {"$set": {"data": r["data"], "updated_at": now_iso()}})
+    await log_audit(user, "deal.score", f"deal:{record_id}",
+                    f"Scored {r['data']['_score']} · {r['data']['_next_action']}", ai_model=model_label("cheap"))
+    return {"score": r["data"]["_score"], "next_action": r["data"]["_next_action"],
+            "reason": r["data"]["_score_reason"], "model": model_label("cheap")}
+
+
+@api.post("/deals/score-all")
+async def score_all_deals(user: dict = Depends(get_current_user)):
+    scope = record_scope(user)
+    updated = 0
+    async for r in db.records.find({**scope, "object_type": "deal"}):
+        if r["data"].get("stage") in ("Won", "Lost"):
+            continue
+        try:
+            raw = await llm_complete(
+                "cheap",
+                "Score this deal 0-100 to close and give ONE next action (max 12 words). "
+                'JSON only: {"score":int,"next_action":str,"reason":str}',
+                f"Deal: {r['data']}", session_id=f"score-{str(r['_id'])}")
+            parsed = extract_json(raw)
+            r["data"]["_score"] = max(0, min(100, int(parsed.get("score", 0))))
+            r["data"]["_next_action"] = parsed.get("next_action", "")
+            r["data"]["_score_reason"] = parsed.get("reason", "")
+            await db.records.update_one({"_id": r["_id"]}, {"$set": {"data": r["data"]}})
+            updated += 1
+        except Exception as e:
+            logger.error(f"score-all error: {e}")
+    await log_audit(user, "deal.score_all", "deals", f"Scored {updated} deals", ai_model=model_label("cheap"))
+    return {"scored": updated}
+
+
+# ----------------------------------------------------------------------------
+# Sequences + message approvals (Email real via Resend, WhatsApp mocked)
+# ----------------------------------------------------------------------------
+class SequenceStep(BaseModel):
+    channel: str = "email"           # email | whatsapp
+    delay_days: int = 0
+    subject: Optional[str] = None
+    ai_prompt: str = ""
+
+
+class SequenceCreate(BaseModel):
+    name: str
+    trigger_type: str = "manual"     # manual | no_reply | stage_changed | link_clicked
+    trigger_config: Dict[str, Any] = {}
+    autonomy: str = "approval"       # approval | auto
+    steps: List[SequenceStep] = []
+
+
+class EnrollReq(BaseModel):
+    contact_record_id: str
+
+
+@api.get("/sequences")
+async def list_sequences(user: dict = Depends(get_current_user)):
+    out = []
+    async for s in db.sequences.find({"workspace_id": user["workspace_id"]}).sort("created_at", -1):
+        s["id"] = str(s["_id"])
+        s.pop("_id", None)
+        out.append(s)
+    return out
+
+
+@api.post("/sequences")
+async def create_sequence(body: SequenceCreate, user: dict = Depends(get_current_user)):
+    doc = {
+        "workspace_id": user["workspace_id"], "owner_id": user["id"], "owner_name": user["name"],
+        "name": body.name, "trigger_type": body.trigger_type, "trigger_config": body.trigger_config,
+        "autonomy": body.autonomy, "steps": [s.model_dump() for s in body.steps],
+        "status": "active", "enrolled": 0, "created_at": now_iso(),
+    }
+    res = await db.sequences.insert_one(doc)
+    doc["id"] = str(res.inserted_id)
+    doc.pop("_id", None)
+    await log_audit(user, "sequence.create", f"sequence:{doc['id']}",
+                    f"Created sequence '{body.name}' ({len(body.steps)} steps, {body.autonomy})")
+    return doc
+
+
+@api.put("/sequences/{seq_id}/toggle")
+async def toggle_sequence(seq_id: str, user: dict = Depends(get_current_user)):
+    s = await db.sequences.find_one({"_id": ObjectId(seq_id), "workspace_id": user["workspace_id"]})
+    if not s:
+        raise HTTPException(status_code=404, detail="Not found")
+    new = "paused" if s["status"] == "active" else "active"
+    await db.sequences.update_one({"_id": s["_id"]}, {"$set": {"status": new}})
+    return {"ok": True, "status": new}
+
+
+@api.delete("/sequences/{seq_id}")
+async def delete_sequence(seq_id: str, user: dict = Depends(get_current_user)):
+    await db.sequences.delete_one({"_id": ObjectId(seq_id), "workspace_id": user["workspace_id"]})
+    return {"ok": True}
+
+
+@api.post("/sequences/{seq_id}/enroll")
+async def enroll_contact(seq_id: str, body: EnrollReq, user: dict = Depends(get_current_user)):
+    seq = await db.sequences.find_one({"_id": ObjectId(seq_id), "workspace_id": user["workspace_id"]})
+    if not seq:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    if not seq.get("steps"):
+        raise HTTPException(status_code=400, detail="Sequence has no steps")
+    contact = await _get_owned_record(body.contact_record_id, user)
+    cdata = contact["data"]
+    step = seq["steps"][0]
+    channel = step.get("channel", "email")
+    # AI-generate the draft (approval-gated free-form message)
+    system = (
+        f"You are an SDR writing a short, personalized {channel} follow-up for a sales sequence. "
+        "Be concise, friendly, and specific. No placeholders like [Name] — use the real context. "
+        "Return ONLY the message body text (no subject line, no signature block beyond a first name sign-off)."
+    )
+    prompt = (f"Contact: {cdata}\nSequence: {seq['name']}\nStep goal: {step.get('ai_prompt') or 'friendly first touch'}\n"
+              f"Sender: {user['name']}")
+    body_text = (await llm_complete("draft", system, prompt, session_id=f"seq-{seq_id}-{body.contact_record_id}")).strip()
+    to_email = cdata.get("email", "")
+    to_phone = cdata.get("phone", "")
+    msg = {
+        "workspace_id": user["workspace_id"], "owner_id": user["id"], "owner_name": user["name"],
+        "sequence_id": seq_id, "sequence_name": seq["name"], "contact_record_id": body.contact_record_id,
+        "contact_name": cdata.get("name", ""), "channel": channel,
+        "to": to_email if channel == "email" else to_phone,
+        "subject": step.get("subject") or f"Quick note from {user['name']}",
+        "body": body_text, "autonomy": seq.get("autonomy", "approval"),
+        "status": "pending", "created_at": now_iso(),
+    }
+    res = await db.messages.insert_one(msg)
+    await db.sequences.update_one({"_id": seq["_id"]}, {"$inc": {"enrolled": 1}})
+    msg["id"] = str(res.inserted_id)
+    msg.pop("_id", None)
+    await log_audit(user, "sequence.enroll", f"sequence:{seq_id}",
+                    f"Enrolled {cdata.get('name','contact')} · drafted {channel} (approval-gated)",
+                    ai_model=model_label("draft"))
+    # Autonomous mode would auto-send here; default is approval-gated so we stop.
+    return msg
+
+
+@api.get("/messages/pending")
+async def pending_messages(user: dict = Depends(get_current_user)):
+    q = {"workspace_id": user["workspace_id"], "status": "pending"}
+    if not is_manager(user):
+        q["owner_id"] = user["id"]
+    out = []
+    async for m in db.messages.find(q).sort("created_at", -1):
+        m["id"] = str(m["_id"])
+        m.pop("_id", None)
+        out.append(m)
+    return out
+
+
+@api.get("/messages/sent")
+async def sent_messages(user: dict = Depends(get_current_user)):
+    q = {"workspace_id": user["workspace_id"], "status": {"$in": ["sent", "rejected"]}}
+    if not is_manager(user):
+        q["owner_id"] = user["id"]
+    out = []
+    async for m in db.messages.find(q).sort("created_at", -1).limit(50):
+        m["id"] = str(m["_id"])
+        m.pop("_id", None)
+        out.append(m)
+    return out
+
+
+class MessageEdit(BaseModel):
+    body: Optional[str] = None
+    subject: Optional[str] = None
+
+
+@api.post("/messages/{msg_id}/approve")
+async def approve_message(msg_id: str, body: MessageEdit, user: dict = Depends(get_current_user)):
+    m = await db.messages.find_one({"_id": ObjectId(msg_id), "workspace_id": user["workspace_id"]})
+    if not m or m["status"] != "pending":
+        raise HTTPException(status_code=404, detail="Message not found")
+    final_body = body.body if body.body is not None else m["body"]
+    final_subject = body.subject if body.subject is not None else m["subject"]
+    delivery = ""
+    if m["channel"] == "email":
+        if not m["to"]:
+            raise HTTPException(status_code=400, detail="Contact has no email address")
+        try:
+            await send_email(to=m["to"], subject=final_subject, html=sequence_email_html(final_body))
+            delivery = "email sent via Resend"
+        except ValueError as e:
+            logger.error(f"sequence email rejected/undeliverable: {e}")
+            raise HTTPException(status_code=502, detail=str(e))
+        except Exception as e:
+            logger.error(f"sequence email failed: {e}")
+            raise HTTPException(status_code=502, detail="Email delivery failed. Please try again.")
+    else:
+        # WhatsApp is MOCKED — provider-agnostic layer, no real transport wired yet.
+        delivery = "WhatsApp (simulated — no real send)"
+    await db.messages.update_one({"_id": m["_id"]}, {"$set": {
+        "status": "sent", "body": final_body, "subject": final_subject,
+        "sent_at": now_iso(), "delivery": delivery}})
+    await db.activities.insert_one({
+        "workspace_id": user["workspace_id"], "record_id": m["contact_record_id"], "type": "message",
+        "content": f"{m['channel'].capitalize()} sent · {m['sequence_name']} ({delivery})", "created_at": now_iso()})
+    await log_audit(user, "message.send", f"{m['channel']}:{m['to']}",
+                    f"Approved & sent {m['channel']} to {m['contact_name']} · {delivery}")
+    return {"ok": True, "delivery": delivery}
+
+
+@api.post("/messages/{msg_id}/reject")
+async def reject_message(msg_id: str, user: dict = Depends(get_current_user)):
+    await db.messages.update_one(
+        {"_id": ObjectId(msg_id), "workspace_id": user["workspace_id"]},
+        {"$set": {"status": "rejected", "resolved_at": now_iso()}})
+    await log_audit(user, "message.reject", "message", "Rejected AI-drafted message")
+    return {"ok": True}
+
+
 @api.get("/")
 async def root():
     return {"service": "SalesMind API", "status": "ok"}
@@ -719,13 +1227,13 @@ async def root():
 # Startup
 # ----------------------------------------------------------------------------
 DEMO_CONTACTS = [
-    {"name": "Marcus Bellamy", "email": "marcus@northwind.io", "phone": "+1 415 555 0142",
+    {"name": "Marcus Bellamy", "email": "delivered+marcus@resend.dev", "phone": "+1 415 555 0142",
      "company": "Northwind Labs", "title": "VP Sales", "status": "Qualified"},
-    {"name": "Priya Nair", "email": "priya@aperturelabs.com", "phone": "+1 628 555 0199",
+    {"name": "Priya Nair", "email": "delivered+priya@resend.dev", "phone": "+1 628 555 0199",
      "company": "Aperture Labs", "title": "Head of Growth", "status": "Lead"},
-    {"name": "Diego Santos", "email": "diego@meridian.co", "phone": "+1 917 555 0110",
+    {"name": "Diego Santos", "email": "delivered+diego@resend.dev", "phone": "+1 917 555 0110",
      "company": "Meridian", "title": "Founder", "status": "Customer"},
-    {"name": "Hannah Cole", "email": "hannah@vertexpay.com", "phone": "+44 20 7946 0958",
+    {"name": "Hannah Cole", "email": "delivered+hannah@resend.dev", "phone": "+44 20 7946 0958",
      "company": "VertexPay", "title": "COO", "status": "Qualified"},
 ]
 DEMO_COMPANIES = [

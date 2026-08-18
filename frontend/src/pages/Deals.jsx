@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import api, { apiErr } from "@/lib/api";
 import { toast } from "sonner";
 import RecordDrawer from "@/components/RecordDrawer";
-import { Plus, Kanban, List } from "lucide-react";
+import { Plus, Kanban, List, Zap, Loader2 } from "lucide-react";
 
 const STAGES = ["Lead", "Contacted", "Proposal", "Won", "Lost"];
 
@@ -18,6 +18,7 @@ export default function Deals() {
   const [open, setOpen] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [scoring, setScoring] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +65,21 @@ export default function Deals() {
   const totalByStage = (stage) =>
     deals.filter((d) => d.data.stage === stage).reduce((s, d) => s + Number(d.data.value || 0), 0);
 
+  const scoreAll = async () => {
+    setScoring(true);
+    try {
+      const { data } = await api.post("/deals/score-all");
+      toast.success(`AI scored ${data.scored} deals`, { description: "Next-best-actions added to each card" });
+      load();
+    } catch (err) {
+      toast.error(apiErr(err.response?.data?.detail));
+    } finally {
+      setScoring(false);
+    }
+  };
+
+  const scoreColor = (s) => (s >= 66 ? "text-coral" : s >= 33 ? "text-operational-text" : "text-operational-muted");
+
   return (
     <div className="op-zone h-full flex flex-col bg-operational-bg text-operational-text">
       <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-operational-border">
@@ -74,6 +90,15 @@ export default function Deals() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            data-testid="score-all-btn"
+            onClick={scoreAll}
+            disabled={scoring}
+            className="flex items-center gap-2 bg-operational-surface hover:bg-operational-border border border-operational-border text-operational-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+          >
+            {scoring ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} className="text-coral" />}
+            Score all
+          </button>
           <div className="flex border border-operational-border rounded-sm overflow-hidden">
             <button
               data-testid="view-kanban"
@@ -138,6 +163,18 @@ export default function Deals() {
                       <span className="font-mono text-sm text-coral">{money(d.data.value)}</span>
                       <span className="font-body text-xs text-operational-muted truncate max-w-[55%]">{d.data.contact}</span>
                     </div>
+                    {d.data._score !== undefined && d.data._score !== "" && (
+                      <div className="mt-2.5 pt-2.5 border-t border-operational-border">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Zap size={11} className="text-coral" />
+                          <span className={`font-mono text-xs ${scoreColor(Number(d.data._score))}`}>{d.data._score}/100</span>
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-operational-muted">close score</span>
+                        </div>
+                        {d.data._next_action && (
+                          <p className="font-body text-xs text-operational-muted leading-snug">{d.data._next_action}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

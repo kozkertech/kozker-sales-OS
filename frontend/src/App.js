@@ -9,6 +9,10 @@ import AppShell from "@/components/AppShell";
 import Dashboard from "@/pages/Dashboard";
 import Records from "@/pages/Records";
 import Deals from "@/pages/Deals";
+import Sequences from "@/pages/Sequences";
+import Approvals from "@/pages/Approvals";
+import Team from "@/pages/Team";
+import AcceptInvite from "@/pages/AcceptInvite";
 import AuditLog from "@/pages/AuditLog";
 
 function Protected({ children }) {
@@ -28,6 +32,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route
         path="/"
         element={
@@ -40,6 +45,9 @@ function AppRoutes() {
         <Route path="contacts" element={<Records key="contact" objectType="contact" title="Contacts" />} />
         <Route path="companies" element={<Records key="company" objectType="company" title="Companies" />} />
         <Route path="deals" element={<Deals />} />
+        <Route path="sequences" element={<Sequences />} />
+        <Route path="approvals" element={<Approvals />} />
+        <Route path="team" element={<Team />} />
         <Route path="audit" element={<AuditLog />} />
       </Route>
     </Routes>
