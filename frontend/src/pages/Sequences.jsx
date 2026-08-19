@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import api, { apiErr } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Plus, Send, Mail, MessageCircle, Zap, Trash2, Play, Pause, X, UserPlus, AlertTriangle } from "lucide-react";
+import { Plus, Send, Mail, MessageCircle, Zap, Trash2, Play, Pause, X, UserPlus, AlertTriangle, Clock, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+
+const STAGES = ["Lead", "Contacted", "Proposal", "Won", "Lost"];
 
 const TRIGGERS = [
   { value: "manual", label: "Manual enroll" },
@@ -11,10 +14,13 @@ const TRIGGERS = [
 ];
 
 export default function Sequences() {
+  const { user } = useAuth();
   const [sequences, setSequences] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [showBuilder, setShowBuilder] = useState(false);
   const [enrollFor, setEnrollFor] = useState(null);
+  const [running, setRunning] = useState(false);
+  const isManager = user?.role === "manager" || user?.role === "admin";
 
   const load = useCallback(() => {
     api.get("/sequences").then((r) => setSequences(r.data)).catch(() => {});
@@ -31,21 +37,49 @@ export default function Sequences() {
     load();
     toast.success("Sequence deleted");
   };
+  const runNow = async () => {
+    setRunning(true);
+    try {
+      const { data } = await api.post("/scheduler/run");
+      toast.success(`Scheduler ran · ${data.processed} step${data.processed === 1 ? "" : "s"} fired`, {
+        description: data.processed ? "Check Approvals for new drafts" : "No steps were due right now",
+      });
+      load();
+    } catch (err) {
+      toast.error(apiErr(err.response?.data?.detail));
+    } finally {
+      setRunning(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-quiet-bg text-quiet-text overflow-y-auto">
       <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-quiet-border">
         <div>
           <h1 className="font-display font-medium text-xl">Sequences</h1>
-          <span className="font-mono text-xs text-quiet-muted">Email + WhatsApp follow-ups · human approval before send</span>
+          <span className="font-mono text-xs text-quiet-muted">Multi-step follow-ups that fire automatically on schedule · engine runs every minute</span>
         </div>
-        <button
-          data-testid="new-sequence-btn"
-          onClick={() => setShowBuilder(true)}
-          className="flex items-center gap-2 bg-coral hover:bg-coral-hover text-white font-body font-medium text-sm px-3 py-2 rounded-sm transition-colors"
-        >
-          <Plus size={15} /> New sequence
-        </button>
+        <div className="flex items-center gap-2">
+          {isManager && (
+            <button
+              data-testid="run-scheduler-btn"
+              onClick={runNow}
+              disabled={running}
+              className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+              title="Fire any due steps now instead of waiting for the 60s tick"
+            >
+              {running ? <Loader2 size={15} className="animate-spin" /> : <Clock size={15} className="text-coral" />}
+              Run now
+            </button>
+          )}
+          <button
+            data-testid="new-sequence-btn"
+            onClick={() => setShowBuilder(true)}
+            className="flex items-center gap-2 bg-coral hover:bg-coral-hover text-white font-body font-medium text-sm px-3 py-2 rounded-sm transition-colors"
+          >
+            <Plus size={15} /> New sequence
+          </button>
+        </div>
       </div>
 
       <div className="p-6 space-y-4 max-w-4xl w-full">
@@ -56,61 +90,139 @@ export default function Sequences() {
           </div>
         )}
         {sequences.map((s) => (
-          <div key={s.id} className="border border-quiet-border rounded-sm p-5" data-testid="sequence-card">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-display font-medium text-base">{s.name}</h3>
-                  <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm border ${
-                    s.status === "active" ? "border-coral text-coral" : "border-quiet-border text-quiet-muted"
-                  }`}>{s.status}</span>
-                  {s.autonomy === "auto" ? (
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted flex items-center gap-1">
-                      <Zap size={10} /> auto-send
-                    </span>
-                  ) : (
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted">approval-gated</span>
-                  )}
-                </div>
-                <div className="font-mono text-xs text-quiet-muted mt-1">
-                  trigger: {TRIGGERS.find((t) => t.value === s.trigger_type)?.label || s.trigger_type} · {s.enrolled || 0} enrolled
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => toggle(s)} data-testid="toggle-sequence" className="text-quiet-muted hover:text-quiet-text" title={s.status === "active" ? "Pause" : "Activate"}>
-                  {s.status === "active" ? <Pause size={16} /> : <Play size={16} />}
-                </button>
-                <button onClick={() => remove(s)} className="text-quiet-muted hover:text-coral"><Trash2 size={16} /></button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap mb-4">
-              {s.steps.map((st, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  {i > 0 && <span className="font-mono text-xs text-quiet-muted">→</span>}
-                  <div className="flex items-center gap-2 border border-quiet-border rounded-sm px-3 py-1.5">
-                    {st.channel === "email" ? <Mail size={13} className="text-coral" /> : <MessageCircle size={13} className="text-coral" />}
-                    <span className="font-body text-xs">{st.channel}</span>
-                    <span className="font-mono text-[10px] text-quiet-muted">+{st.delay_days}d</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              data-testid="enroll-btn"
-              onClick={() => setEnrollFor(s)}
-              className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
-            >
-              <UserPlus size={14} /> Enroll a contact
-            </button>
-          </div>
+          <SequenceCard
+            key={s.id}
+            s={s}
+            isManager={isManager}
+            onToggle={toggle}
+            onRemove={remove}
+            onEnroll={setEnrollFor}
+          />
         ))}
       </div>
 
       {showBuilder && <SequenceBuilder onClose={() => setShowBuilder(false)} onCreated={load} />}
       {enrollFor && (
         <EnrollDialog sequence={enrollFor} contacts={contacts} onClose={() => setEnrollFor(null)} onDone={load} />
+      )}
+    </div>
+  );
+}
+
+function fmtNext(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diff = d - new Date();
+  if (diff <= 0) return "due now";
+  const days = Math.round(diff / 86400000);
+  if (days >= 1) return `in ${days}d`;
+  const hrs = Math.round(diff / 3600000);
+  if (hrs >= 1) return `in ${hrs}h`;
+  return "soon";
+}
+
+function SequenceCard({ s, isManager, onToggle, onRemove, onEnroll }) {
+  const [open, setOpen] = useState(false);
+  const [enrollments, setEnrollments] = useState(null);
+  const cfgStage = s.trigger_config?.stage;
+
+  const toggleEnrollments = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && enrollments === null) {
+      try {
+        const { data } = await api.get(`/sequences/${s.id}/enrollments`);
+        setEnrollments(data);
+      } catch {
+        setEnrollments([]);
+      }
+    }
+  };
+
+  return (
+    <div className="bg-white border border-quiet-border rounded-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] p-5" data-testid="sequence-card">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-medium text-base">{s.name}</h3>
+            <span className={`font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm border ${
+              s.status === "active" ? "border-coral text-coral" : "border-quiet-border text-quiet-muted"
+            }`}>{s.status}</span>
+            {s.autonomy === "auto" ? (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted flex items-center gap-1">
+                <Zap size={10} /> auto-send
+              </span>
+            ) : (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-quiet-muted">approval-gated</span>
+            )}
+          </div>
+          <div className="font-mono text-xs text-quiet-muted mt-1">
+            trigger: {TRIGGERS.find((t) => t.value === s.trigger_type)?.label || s.trigger_type}
+            {cfgStage ? ` → ${cfgStage}` : ""} · {s.active_enrollments || 0} active · {s.enrolled || 0} enrolled
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => onToggle(s)} data-testid="toggle-sequence" className="text-quiet-muted hover:text-quiet-text" title={s.status === "active" ? "Pause" : "Activate"}>
+            {s.status === "active" ? <Pause size={16} /> : <Play size={16} />}
+          </button>
+          <button onClick={() => onRemove(s)} className="text-quiet-muted hover:text-coral"><Trash2 size={16} /></button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        {s.steps.map((st, i) => (
+          <div key={i} className="flex items-center gap-2">
+            {i > 0 && <span className="font-mono text-xs text-quiet-muted">→</span>}
+            <div className="flex items-center gap-2 border border-quiet-border rounded-sm px-3 py-1.5">
+              {st.channel === "email" ? <Mail size={13} className="text-coral" /> : <MessageCircle size={13} className="text-coral" />}
+              <span className="font-body text-xs">{st.channel}</span>
+              <span className="font-mono text-[10px] text-quiet-muted">+{st.delay_days}d</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          data-testid="enroll-btn"
+          onClick={() => onEnroll(s)}
+          className="flex items-center gap-2 bg-quiet-surface hover:bg-quiet-border border border-quiet-border text-quiet-text font-body text-sm px-3 py-2 rounded-sm transition-colors"
+        >
+          <UserPlus size={14} /> Enroll a contact
+        </button>
+        <button
+          data-testid="view-enrollments"
+          onClick={toggleEnrollments}
+          className="flex items-center gap-1.5 font-body text-sm text-quiet-muted hover:text-quiet-text px-2 py-2 transition-colors"
+        >
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Enrollments
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-4 border-t border-quiet-border pt-3" data-testid="enrollments-list">
+          {enrollments === null ? (
+            <p className="font-mono text-xs text-quiet-muted sm-pulse">loading…</p>
+          ) : enrollments.length === 0 ? (
+            <p className="font-body text-sm text-quiet-muted">No one enrolled yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {enrollments.map((e) => (
+                <div key={e.id} className="flex items-center justify-between text-sm" data-testid="enrollment-row">
+                  <span className="font-body text-quiet-text">{e.contact_name || "Contact"}</span>
+                  <div className="flex items-center gap-3 font-mono text-xs text-quiet-muted">
+                    <span>step {Math.min(e.current_step + 1, e.steps_total)}/{e.steps_total}</span>
+                    <span className={
+                      e.status === "active" ? "text-coral"
+                      : e.status === "completed" ? "text-quiet-text" : "text-quiet-muted"
+                    }>{e.status}</span>
+                    {e.status === "active" && <span>next {fmtNext(e.next_run_at)}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

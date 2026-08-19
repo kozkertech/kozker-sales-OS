@@ -18,6 +18,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel, Field, BeforeValidator, EmailStr, ConfigDict
 
 from llm import llm_complete, llm_stream, extract_json, model_label
@@ -40,6 +41,7 @@ logger = logging.getLogger("salesmind")
 
 app = FastAPI(title="SalesMind API")
 api = APIRouter(prefix="/api")
+scheduler = AsyncIOScheduler(timezone="UTC")
 
 # ----------------------------------------------------------------------------
 # Models
@@ -522,6 +524,7 @@ async def update_record(record_id: str, body: RecordUpdate, user: dict = Depends
             "workspace_id": user["workspace_id"], "record_id": record_id, "type": "stage",
             "content": f"Stage moved {old_stage or '—'} → {new_stage}", "created_at": now_iso(),
         })
+        await fire_stage_trigger(user, body.data, new_stage)
     await log_audit(user, "record.update", f"{r['object_type']}:{record_id}", "Updated record")
     r["data"] = body.data
     return _serialize_record(r)
@@ -1060,12 +1063,193 @@ class EnrollReq(BaseModel):
     contact_record_id: str
 
 
+# ----------------------------------------------------------------------------
+# Sequence engine — auto-firing scheduler (time + stage triggers)
+# ----------------------------------------------------------------------------
+def _in_days(n) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=max(0, int(n or 0)))).isoformat()
+
+
+async def _draft_message_body(seq: dict, cdata: dict, owner_name: str, step: dict, session_id: str) -> str:
+    channel = step.get("channel", "email")
+    system = (
+        f"You are an SDR writing a short, personalized {channel} follow-up for a sales sequence. "
+        "Be concise, friendly, and specific. No placeholders like [Name] — use the real context. "
+        "Return ONLY the message body text (no subject line, no signature block beyond a first name sign-off)."
+    )
+    prompt = (f"Contact: {cdata}\nSequence: {seq['name']}\nStep goal: {step.get('ai_prompt') or 'friendly follow-up'}\n"
+              f"Sender: {owner_name}")
+    return (await llm_complete("draft", system, prompt, session_id=session_id)).strip()
+
+
+async def _deliver_or_queue(enr: dict, seq: dict, cdata: dict, step_index: int) -> dict:
+    """Draft a step for an enrollment and either auto-send (auto autonomy) or queue for approval."""
+    step = seq["steps"][step_index]
+    channel = step.get("channel", "email")
+    owner_name = enr.get("owner_name", "")
+    body_text = await _draft_message_body(
+        seq, cdata, owner_name, step,
+        session_id=f"seq-{enr['sequence_id']}-{enr['contact_record_id']}-{step_index}")
+    to_email = cdata.get("email", "")
+    to_phone = cdata.get("phone", "")
+    autonomy = enr.get("autonomy", "approval")
+    msg = {
+        "workspace_id": enr["workspace_id"], "owner_id": enr["owner_id"], "owner_name": owner_name,
+        "sequence_id": enr["sequence_id"], "sequence_name": seq["name"],
+        "contact_record_id": enr["contact_record_id"], "contact_name": cdata.get("name", ""),
+        "channel": channel, "to": to_email if channel == "email" else to_phone,
+        "subject": step.get("subject") or f"Quick note from {owner_name}",
+        "body": body_text, "autonomy": autonomy, "step_index": step_index, "created_at": now_iso(),
+    }
+    sysuser = {"workspace_id": enr["workspace_id"], "id": enr["owner_id"], "name": owner_name, "role": "manager"}
+    if autonomy == "auto":
+        delivery, sent_ok = "", True
+        if channel == "email":
+            if not msg["to"]:
+                sent_ok, delivery = False, "no email address on contact"
+            else:
+                try:
+                    await send_email(to=msg["to"], subject=msg["subject"], html=sequence_email_html(body_text))
+                    delivery = "email sent via Resend"
+                except Exception as e:
+                    sent_ok, delivery = False, "auto-send failed — needs review"
+                    logger.error(f"[scheduler] auto email failed: {e}")
+        else:
+            delivery = "WhatsApp (simulated — no real send)"
+        # If auto-send couldn't deliver, fall back to human approval so nothing is lost.
+        msg["status"] = "sent" if sent_ok else "pending"
+        if sent_ok:
+            msg.update({"sent_at": now_iso(), "delivery": delivery})
+        else:
+            msg["delivery"] = delivery
+        res = await db.messages.insert_one(msg)
+        if sent_ok:
+            await db.activities.insert_one({
+                "workspace_id": enr["workspace_id"], "record_id": enr["contact_record_id"], "type": "message",
+                "content": f"{channel.capitalize()} auto-sent · {seq['name']} ({delivery})", "created_at": now_iso()})
+            await log_audit(sysuser, "message.autosend", f"{channel}:{msg['to']}",
+                            f"Auto-sent {channel} step {step_index + 1} to {msg['contact_name']} · {delivery}",
+                            ai_model=model_label("draft"))
+    else:
+        msg["status"] = "pending"
+        res = await db.messages.insert_one(msg)
+        await log_audit(sysuser, "sequence.draft", f"sequence:{enr['sequence_id']}",
+                        f"Drafted {channel} step {step_index + 1} for {msg['contact_name']} (approval-gated)",
+                        ai_model=model_label("draft"))
+    msg["id"] = str(res.inserted_id)
+    msg.pop("_id", None)
+    return msg
+
+
+async def _advance_enrollment(enr: dict, seq: dict):
+    """After processing the current step, schedule the next one or mark completed."""
+    nxt = enr["current_step"] + 1
+    steps = seq["steps"]
+    if nxt >= len(steps):
+        await db.enrollments.update_one({"_id": enr["_id"]}, {"$set": {
+            "status": "completed", "current_step": nxt, "next_run_at": None,
+            "last_sent_at": now_iso(), "updated_at": now_iso()}})
+    else:
+        await db.enrollments.update_one({"_id": enr["_id"]}, {"$set": {
+            "current_step": nxt, "next_run_at": _in_days(steps[nxt].get("delay_days", 0)),
+            "last_sent_at": now_iso(), "updated_at": now_iso()}})
+
+
+async def start_enrollment(seq: dict, contact_record_id: str, cdata: dict,
+                           owner_id: str, owner_name: str, source: str) -> dict:
+    """Create an enrollment, process step 0 immediately, and schedule the remaining steps."""
+    sid = str(seq["_id"]) if seq.get("_id") is not None else seq["id"]
+    enr = {
+        "workspace_id": seq["workspace_id"], "sequence_id": sid, "sequence_name": seq["name"],
+        "contact_record_id": contact_record_id, "contact_name": cdata.get("name", ""),
+        "owner_id": owner_id, "owner_name": owner_name, "autonomy": seq.get("autonomy", "approval"),
+        "status": "active", "current_step": 0, "steps_total": len(seq["steps"]),
+        "next_run_at": None, "last_sent_at": None, "source": source,
+        "created_at": now_iso(), "updated_at": now_iso(),
+    }
+    res = await db.enrollments.insert_one(enr)
+    enr["_id"] = res.inserted_id
+    msg = await _deliver_or_queue(enr, seq, cdata, 0)
+    await _advance_enrollment(enr, seq)
+    await db.sequences.update_one({"_id": ObjectId(sid)}, {"$inc": {"enrolled": 1}})
+    enr["id"] = str(res.inserted_id)
+    enr.pop("_id", None)
+    return {"enrollment": enr, "message": msg}
+
+
+async def run_due_enrollments() -> int:
+    """Process every active enrollment whose next step is due. Runs on a 60s interval."""
+    now = now_iso()
+    processed = 0
+    async for enr in db.enrollments.find({"status": "active", "next_run_at": {"$ne": None, "$lte": now}}):
+        try:
+            seq = await db.sequences.find_one({"_id": ObjectId(enr["sequence_id"])})
+            if not seq or seq.get("status") != "active":
+                continue  # paused/deleted sequence → hold the enrollment
+            cdata = await _load_contact_data(enr["contact_record_id"])
+            if cdata is None:
+                await db.enrollments.update_one({"_id": enr["_id"]}, {"$set": {
+                    "status": "stopped", "next_run_at": None, "updated_at": now_iso()}})
+                continue
+            step_index = enr["current_step"]
+            if step_index >= len(seq["steps"]):
+                await db.enrollments.update_one({"_id": enr["_id"]}, {"$set": {
+                    "status": "completed", "next_run_at": None, "updated_at": now_iso()}})
+                continue
+            await _deliver_or_queue(enr, seq, cdata, step_index)
+            await _advance_enrollment(enr, seq)
+            processed += 1
+        except Exception as e:
+            logger.error(f"[scheduler] enrollment {enr.get('_id')} failed: {e}")
+    if processed:
+        logger.info(f"[scheduler] processed {processed} due enrollment step(s)")
+    return processed
+
+
+async def _load_contact_data(contact_record_id: str):
+    try:
+        r = await db.records.find_one({"_id": ObjectId(contact_record_id)})
+    except InvalidId:
+        return None
+    return r["data"] if r else None
+
+
+async def fire_stage_trigger(user: dict, deal_data: dict, new_stage: str):
+    """When a deal reaches a stage, auto-enroll its contact into any matching stage-triggered sequence."""
+    wid = user["workspace_id"]
+    contact_name = (deal_data or {}).get("contact")
+    if not contact_name:
+        return
+    contact = await db.records.find_one({"workspace_id": wid, "object_type": "contact", "data.name": contact_name})
+    if not contact:
+        return
+    cid = str(contact["_id"])
+    async for seq in db.sequences.find({"workspace_id": wid, "status": "active", "trigger_type": "stage_changed"}):
+        cfg_stage = (seq.get("trigger_config") or {}).get("stage")
+        if cfg_stage and cfg_stage != new_stage:
+            continue
+        if not seq.get("steps"):
+            continue
+        existing = await db.enrollments.find_one({
+            "sequence_id": str(seq["_id"]), "contact_record_id": cid,
+            "status": {"$in": ["active", "completed"]}})
+        if existing:
+            continue
+        await start_enrollment(seq, cid, contact["data"], seq["owner_id"], seq["owner_name"], source="stage")
+        await log_audit(user, "sequence.autotrigger", f"sequence:{seq['_id']}",
+                        f"Auto-enrolled {contact_name} — deal reached stage '{new_stage}'")
+
+
+
 @api.get("/sequences")
 async def list_sequences(user: dict = Depends(get_current_user)):
     out = []
     async for s in db.sequences.find({"workspace_id": user["workspace_id"]}).sort("created_at", -1):
-        s["id"] = str(s["_id"])
+        sid = str(s["_id"])
+        s["id"] = sid
         s.pop("_id", None)
+        s["active_enrollments"] = await db.enrollments.count_documents({"sequence_id": sid, "status": "active"})
+        s["completed_enrollments"] = await db.enrollments.count_documents({"sequence_id": sid, "status": "completed"})
         out.append(s)
     return out
 
@@ -1110,38 +1294,34 @@ async def enroll_contact(seq_id: str, body: EnrollReq, user: dict = Depends(get_
     if not seq.get("steps"):
         raise HTTPException(status_code=400, detail="Sequence has no steps")
     contact = await _get_owned_record(body.contact_record_id, user)
-    cdata = contact["data"]
-    step = seq["steps"][0]
-    channel = step.get("channel", "email")
-    # AI-generate the draft (approval-gated free-form message)
-    system = (
-        f"You are an SDR writing a short, personalized {channel} follow-up for a sales sequence. "
-        "Be concise, friendly, and specific. No placeholders like [Name] — use the real context. "
-        "Return ONLY the message body text (no subject line, no signature block beyond a first name sign-off)."
-    )
-    prompt = (f"Contact: {cdata}\nSequence: {seq['name']}\nStep goal: {step.get('ai_prompt') or 'friendly first touch'}\n"
-              f"Sender: {user['name']}")
-    body_text = (await llm_complete("draft", system, prompt, session_id=f"seq-{seq_id}-{body.contact_record_id}")).strip()
-    to_email = cdata.get("email", "")
-    to_phone = cdata.get("phone", "")
-    msg = {
-        "workspace_id": user["workspace_id"], "owner_id": user["id"], "owner_name": user["name"],
-        "sequence_id": seq_id, "sequence_name": seq["name"], "contact_record_id": body.contact_record_id,
-        "contact_name": cdata.get("name", ""), "channel": channel,
-        "to": to_email if channel == "email" else to_phone,
-        "subject": step.get("subject") or f"Quick note from {user['name']}",
-        "body": body_text, "autonomy": seq.get("autonomy", "approval"),
-        "status": "pending", "created_at": now_iso(),
-    }
-    res = await db.messages.insert_one(msg)
-    await db.sequences.update_one({"_id": seq["_id"]}, {"$inc": {"enrolled": 1}})
-    msg["id"] = str(res.inserted_id)
-    msg.pop("_id", None)
+    result = await start_enrollment(seq, body.contact_record_id, contact["data"],
+                                    user["id"], user["name"], source="manual")
     await log_audit(user, "sequence.enroll", f"sequence:{seq_id}",
-                    f"Enrolled {cdata.get('name','contact')} · drafted {channel} (approval-gated)",
-                    ai_model=model_label("draft"))
-    # Autonomous mode would auto-send here; default is approval-gated so we stop.
-    return msg
+                    f"Enrolled {contact['data'].get('name', 'contact')} in '{seq['name']}' "
+                    f"· {seq.get('autonomy', 'approval')}")
+    return result["message"]
+
+
+@api.get("/sequences/{seq_id}/enrollments")
+async def list_enrollments(seq_id: str, user: dict = Depends(get_current_user)):
+    q = {"workspace_id": user["workspace_id"], "sequence_id": seq_id}
+    if not is_manager(user):
+        q["owner_id"] = user["id"]
+    out = []
+    async for e in db.enrollments.find(q).sort("created_at", -1):
+        e["id"] = str(e["_id"])
+        e.pop("_id", None)
+        out.append(e)
+    return out
+
+
+@api.post("/scheduler/run")
+async def run_scheduler_now(user: dict = Depends(get_current_user)):
+    """Manually run the due-enrollment pass (managers only). Also runs automatically every 60s."""
+    if not is_manager(user):
+        raise HTTPException(status_code=403, detail="Managers only")
+    n = await run_due_enrollments()
+    return {"processed": n}
 
 
 @api.get("/messages/pending")
@@ -1314,6 +1494,8 @@ async def startup():
     await db.fields.create_index([("workspace_id", 1), ("object_type", 1)])
     await db.records.create_index([("workspace_id", 1), ("object_type", 1)])
     await db.audit_logs.create_index([("workspace_id", 1)])
+    await db.enrollments.create_index([("status", 1), ("next_run_at", 1)])
+    await db.enrollments.create_index([("sequence_id", 1)])
 
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
@@ -1339,9 +1521,18 @@ async def startup():
 
     await seed_demo_account()
 
+    # Start the sequence engine — auto-fires due enrollment steps every 60s.
+    if not scheduler.running:
+        scheduler.add_job(run_due_enrollments, "interval", seconds=60,
+                          id="seq_engine", max_instances=1, coalesce=True, replace_existing=True)
+        scheduler.start()
+        logger.info("Sequence scheduler started (60s interval)")
+
 
 @app.on_event("shutdown")
 async def shutdown():
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
     client.close()
 
 
