@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api, { apiErr } from "@/lib/api";
+import api, { apiErr, setAuthToken, clearAuthToken } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
@@ -24,18 +24,27 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
     setUser(data);
     return data;
   };
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+    }
     setUser(data);
     return data;
   };
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
+    try {
+      await api.post("/auth/logout");
+    } catch {}
+    clearAuthToken();
     setUser(false);
   };
 

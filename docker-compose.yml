@@ -1,0 +1,68 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: salesmind-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - salesmind_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - salesmind-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: salesmind-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017}
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-salesmind}
+      - MONGO_URL=${MONGO_URL:-mongodb://mongodb:27017}
+      - DB_NAME=${DB_NAME:-salesmind}
+      - JWT_SECRET=${JWT_SECRET:-salesmind_super_secret_jwt_key_2026}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-govind.developer@kozker.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-SalesMind2026!}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - COOKIE_SECURE=false
+      - ENVIRONMENT=development
+      - EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY:-}
+      - EMERGENT_EMAIL_KEY=${EMERGENT_EMAIL_KEY:-}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-SalesMind}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - salesmind-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-}
+    container_name: salesmind-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - salesmind-net
+
+volumes:
+  salesmind_mongo_data:
+
+networks:
+  salesmind-net:
+    driver: bridge

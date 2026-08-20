@@ -27,19 +27,23 @@ from email_service import send_email, invite_email_html, sequence_email_html
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # ----------------------------------------------------------------------------
-# Database
+# Database (Supports MongoDB Atlas MONGODB_URI and legacy MONGO_URL)
 # ----------------------------------------------------------------------------
-mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ["DB_NAME"]]
+mongo_url = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+db_name = os.environ.get("MONGODB_DATABASE") or os.environ.get("DB_NAME", "salesmind")
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+db = client[db_name]
 
-JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_SECRET = os.environ.get("JWT_SECRET", "salesmind_super_secret_jwt_key_2026")
 JWT_ALGORITHM = "HS256"
+
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "govind.developer@kozker.com").lower()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "SalesMind2026!")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("salesmind")
 
-app = FastAPI(title="SalesMind API")
+app = FastAPI(title="SalesMind API", version="1.0.0")
 api = APIRouter(prefix="/api")
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -82,11 +86,15 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true" or os.environ.get("ENVIRONMENT", "").lower() == "production"
+COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
+
+
 def set_auth_cookies(response: Response, access: str, refresh: str):
-    response.set_cookie("access_token", access, httponly=True, secure=True,
-                        samesite="none", max_age=43200, path="/")
-    response.set_cookie("refresh_token", refresh, httponly=True, secure=True,
-                        samesite="none", max_age=604800, path="/")
+    response.set_cookie("access_token", access, httponly=True, secure=COOKIE_SECURE,
+                        samesite=COOKIE_SAMESITE, max_age=43200, path="/")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=COOKIE_SECURE,
+                        samesite=COOKIE_SAMESITE, max_age=604800, path="/")
 
 
 async def get_current_user(request: Request) -> dict:
@@ -206,15 +214,16 @@ class LoginReq(BaseModel):
     password: str
 
 
-async def _issue_session(response: Response, user_doc: dict):
+async def _issue_session(response: Response, user_doc: dict) -> dict:
     uid = str(user_doc["_id"])
     access = create_access_token(uid, user_doc["email"])
     refresh = create_refresh_token(uid)
     set_auth_cookies(response, access, refresh)
+    return {"access_token": access, "refresh_token": refresh, "token_type": "bearer"}
 
 
-def _public_user(user_doc: dict) -> dict:
-    return {
+def _public_user(user_doc: dict, tokens: Optional[dict] = None) -> dict:
+    res = {
         "id": str(user_doc["_id"]),
         "name": user_doc["name"],
         "email": user_doc["email"],
@@ -222,6 +231,10 @@ def _public_user(user_doc: dict) -> dict:
         "workspace_id": user_doc["workspace_id"],
         "workspace_name": user_doc.get("workspace_name", ""),
     }
+    if tokens:
+        res["access_token"] = tokens.get("access_token")
+        res["token_type"] = "bearer"
+    return res
 
 
 @api.post("/auth/register")
@@ -244,8 +257,8 @@ async def register(body: RegisterReq, response: Response):
     res = await db.users.insert_one(doc)
     doc["_id"] = res.inserted_id
     await seed_workspace(workspace_id)
-    await _issue_session(response, doc)
-    return _public_user(doc)
+    tokens = await _issue_session(response, doc)
+    return _public_user(doc, tokens)
 
 
 @api.post("/auth/login")
@@ -266,8 +279,8 @@ async def login(body: LoginReq, request: Request, response: Response):
             upsert=True)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await db.login_attempts.delete_one({"identifier": ident})
-    await _issue_session(response, user)
-    return _public_user(user)
+    tokens = await _issue_session(response, user)
+    return _public_user(user, tokens)
 
 
 @api.post("/auth/logout")
@@ -290,6 +303,10 @@ async def me(user: dict = Depends(get_current_user)):
 async def refresh_token(request: Request, response: Response):
     token = request.cookies.get("refresh_token")
     if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if not token:
         raise HTTPException(status_code=401, detail="No refresh token")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -299,9 +316,9 @@ async def refresh_token(request: Request, response: Response):
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         access = create_access_token(str(user["_id"]), user["email"])
-        response.set_cookie("access_token", access, httponly=True, secure=True,
-                            samesite="none", max_age=43200, path="/")
-        return {"ok": True}
+        refresh = create_refresh_token(str(user["_id"]))
+        set_auth_cookies(response, access, refresh)
+        return {"ok": True, "access_token": access, "token_type": "bearer"}
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -1487,39 +1504,67 @@ async def seed_demo_account():
             await db.users.update_one({"email": rep_email}, {"$set": {"password_hash": hash_password(pw)}})
 
 
+@app.get("/")
+@app.get("/health")
+@api.get("/health")
+@api.get("/")
+async def health_check():
+    db_status = "healthy"
+    try:
+        await client.admin.command("ping")
+    except Exception as e:
+        db_status = f"unreachable: {str(e)}"
+    return {
+        "status": "ok" if "unreachable" not in db_status else "degraded",
+        "service": "SalesMind API",
+        "database": db_status,
+        "scheduler": "running" if scheduler.running else "stopped",
+        "timestamp": now_iso()
+    }
+
+
 @app.on_event("startup")
 async def startup():
-    await db.users.create_index("email", unique=True)
-    await db.login_attempts.create_index("identifier")
-    await db.fields.create_index([("workspace_id", 1), ("object_type", 1)])
-    await db.records.create_index([("workspace_id", 1), ("object_type", 1)])
-    await db.audit_logs.create_index([("workspace_id", 1)])
-    await db.enrollments.create_index([("status", 1), ("next_run_at", 1)])
-    await db.enrollments.create_index([("sequence_id", 1)])
+    try:
+        await client.admin.command("ping")
+        logger.info("Successfully connected to MongoDB database")
+    except Exception as exc:
+        logger.warning(f"Could not connect to MongoDB on startup: {exc}. Retrying on subsequent requests.")
 
-    admin_email = os.environ["ADMIN_EMAIL"].lower()
-    admin_password = os.environ["ADMIN_PASSWORD"]
-    existing = await db.users.find_one({"email": admin_email})
-    if existing is None:
-        ws = await db.workspaces.insert_one({"name": "Kozker Sales", "created_at": now_iso()})
-        workspace_id = str(ws.inserted_id)
-        doc = {
-            "name": "Govind", "email": admin_email, "password_hash": hash_password(admin_password),
-            "role": "manager", "workspace_id": workspace_id, "workspace_name": "Kozker Sales",
-            "created_at": now_iso(),
-        }
-        res = await db.users.insert_one(doc)
-        await seed_workspace(workspace_id)
-        await seed_demo_records(str(res.inserted_id), "Govind", workspace_id)
-        logger.info("Seeded admin + demo workspace")
-    else:
-        if not verify_password(admin_password, existing["password_hash"]):
-            await db.users.update_one({"email": admin_email},
-                                      {"$set": {"password_hash": hash_password(admin_password)}})
-        await seed_workspace(existing["workspace_id"])
-        await seed_demo_records(str(existing["_id"]), existing["name"], existing["workspace_id"])
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.login_attempts.create_index("identifier")
+        await db.fields.create_index([("workspace_id", 1), ("object_type", 1)])
+        await db.records.create_index([("workspace_id", 1), ("object_type", 1)])
+        await db.audit_logs.create_index([("workspace_id", 1)])
+        await db.enrollments.create_index([("status", 1), ("next_run_at", 1)])
+        await db.enrollments.create_index([("sequence_id", 1)])
 
-    await seed_demo_account()
+        admin_email = os.environ.get("ADMIN_EMAIL", "govind.developer@kozker.com").lower()
+        admin_password = os.environ.get("ADMIN_PASSWORD", "SalesMind2026!")
+        existing = await db.users.find_one({"email": admin_email})
+        if existing is None:
+            ws = await db.workspaces.insert_one({"name": "Kozker Sales", "created_at": now_iso()})
+            workspace_id = str(ws.inserted_id)
+            doc = {
+                "name": "Govind", "email": admin_email, "password_hash": hash_password(admin_password),
+                "role": "manager", "workspace_id": workspace_id, "workspace_name": "Kozker Sales",
+                "created_at": now_iso(),
+            }
+            res = await db.users.insert_one(doc)
+            await seed_workspace(workspace_id)
+            await seed_demo_records(str(res.inserted_id), "Govind", workspace_id)
+            logger.info("Seeded admin + demo workspace")
+        else:
+            if not verify_password(admin_password, existing["password_hash"]):
+                await db.users.update_one({"email": admin_email},
+                                          {"$set": {"password_hash": hash_password(admin_password)}})
+            await seed_workspace(existing["workspace_id"])
+            await seed_demo_records(str(existing["_id"]), existing["name"], existing["workspace_id"])
+
+        await seed_demo_account()
+    except Exception as exc:
+        logger.error(f"Error during startup indexing/seeding: {exc}")
 
     # Start the sequence engine — auto-fires due enrollment steps every 60s.
     if not scheduler.running:
@@ -1537,10 +1582,25 @@ async def shutdown():
 
 
 app.include_router(api)
+
+# Parse and normalize CORS origins
+raw_origins = os.environ.get("FRONTEND_URL") or os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
+allowed_origins = [orig.strip().rstrip("/") for orig in raw_origins.split(",") if orig.strip()]
+for default_origin in ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:3000", "http://127.0.0.1:8000"]:
+    if default_origin not in allowed_origins:
+        allowed_origins.append(default_origin)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)

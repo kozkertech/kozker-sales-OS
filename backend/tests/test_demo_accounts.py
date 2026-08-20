@@ -3,7 +3,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or os.environ.get("BACKEND_URL") or "http://localhost:8000").rstrip("/")
 
 DEMO_MGR = {"email": "demo@salesmind.app", "password": "Demo1234!"}
 DEMO_REP = {"email": "rep@salesmind.app", "password": "Demo1234!"}

@@ -5,7 +5,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://salesmind-crm.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or os.environ.get("BACKEND_URL") or "http://localhost:8000").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "govind.developer@kozker.com"
@@ -166,9 +166,11 @@ class TestIsolation:
                                json={"object_type": "contact",
                                      "data": {"name": "TEST_cross"}}, timeout=15)
         rid = r.json()["id"]
-        r2 = new_user["session"].get(f"{API}/records/{rid}", timeout=15)
-        assert r2.status_code == 404
-        admin_session.delete(f"{API}/records/{rid}", timeout=15)
+        try:
+            r2 = new_user["session"].get(f"{API}/records/{rid}", timeout=15)
+            assert r2.status_code == 404
+        finally:
+            admin_session.delete(f"{API}/records/{rid}", timeout=15)
 
 
 # ---------- AI endpoints ----------
