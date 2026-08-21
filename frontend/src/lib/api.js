@@ -1,7 +1,11 @@
 import axios from "axios";
 
-const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/+$/, "");
-export const API = `${BACKEND_URL}/api`;
+let rawBackendUrl = (process.env.REACT_APP_BACKEND_URL || "").trim().replace(/\/+$/, "");
+if (rawBackendUrl && !rawBackendUrl.startsWith("http://") && !rawBackendUrl.startsWith("https://")) {
+  rawBackendUrl = `https://${rawBackendUrl}`;
+}
+const BACKEND_URL = rawBackendUrl;
+export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 const TOKEN_KEY = "salesmind_access_token";
 
