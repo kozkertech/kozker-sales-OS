@@ -1514,11 +1514,7 @@ async def seed_demo_account():
                                             {"$set": {"owner_id": rep_id, "owner_name": "Demo Rep"}})
         logger.info("Seeded public demo account")
     else:
-        if not verify_password(pw, u["password_hash"]):
-            await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(pw)}})
-        r = await db.users.find_one({"email": rep_email})
-        if r and not verify_password(pw, r["password_hash"]):
-            await db.users.update_one({"email": rep_email}, {"$set": {"password_hash": hash_password(pw)}})
+        pass
 
 
 async def seed_initial_users():
@@ -1547,15 +1543,9 @@ async def seed_initial_users():
             await seed_workspace(workspace_id)
             await seed_demo_records(str(res.inserted_id), "Govind", workspace_id)
             logger.info("Seeded admin + demo workspace")
-        else:
-            if not verify_password(admin_password, existing["password_hash"]):
-                await db.users.update_one({"email": admin_email},
-                                          {"$set": {"password_hash": hash_password(admin_password)}})
-            await seed_workspace(existing["workspace_id"])
-            await seed_demo_records(str(existing["_id"]), existing["name"], existing["workspace_id"])
 
         await seed_demo_account()
-        # Reset login attempt lockouts so fresh admin isn't locked
+        # Reset login attempt lockouts
         await db.login_attempts.delete_many({})
     except Exception as exc:
         logger.error(f"Error during seeding initial users: {exc}")
