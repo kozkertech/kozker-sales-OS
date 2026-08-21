@@ -37,7 +37,18 @@ export default function AIChatPanel({ onClose }) {
         headers,
         body: JSON.stringify({ message: q }),
       });
-      if (!resp.ok || !resp.body) throw new Error("chat failed");
+      if (!resp.ok) {
+        let errDetail = "";
+        try {
+          const errData = await resp.json();
+          errDetail = errData.detail || errData.message || "";
+        } catch {
+          errDetail = await resp.text().catch(() => "");
+        }
+        throw new Error(errDetail || `Chat failed (${resp.status})`);
+      }
+      if (!resp.body) throw new Error("No response stream");
+
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -50,10 +61,15 @@ export default function AIChatPanel({ onClose }) {
           return copy;
         });
       }
-    } catch {
+    } catch (err) {
+      const errMsg = err?.message || "";
+      let userMsg = "Sorry — I couldn't reach the pipeline just now.";
+      if (errMsg.includes("401") || errMsg.toLowerCase().includes("authenticated")) {
+        userMsg = "Session expired or unauthenticated. Please refresh or sign in again.";
+      }
       setMessages((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = { role: "assistant", content: "Sorry — I couldn't reach the pipeline just now." };
+        copy[copy.length - 1] = { role: "assistant", content: userMsg };
         return copy;
       });
     } finally {

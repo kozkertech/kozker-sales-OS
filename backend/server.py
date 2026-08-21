@@ -313,6 +313,7 @@ async def me(user: dict = Depends(get_current_user)):
         "id": user["id"], "name": user["name"], "email": user["email"],
         "role": user["role"], "workspace_id": user["workspace_id"],
         "workspace_name": user.get("workspace_name", ""),
+        "access_token": create_access_token(user["id"], user["email"]),
     }
 
 

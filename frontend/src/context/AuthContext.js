@@ -11,6 +11,9 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get("/auth/me");
       if (data && typeof data === "object" && (data.id || data.email)) {
+        if (data.access_token) {
+          setAuthToken(data.access_token);
+        }
         setUser(data);
       } else {
         setUser(false);
