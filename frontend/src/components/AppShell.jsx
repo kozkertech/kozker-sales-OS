@@ -18,12 +18,14 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
 
-  const initials = (user?.name || "?")
+  const userName = typeof user?.name === "string" && user.name.trim() ? user.name : (user?.email || "?");
+  const initials = userName
     .split(" ")
-    .map((s) => s[0])
+    .map((s) => (s && s[0] ? s[0] : ""))
+    .filter(Boolean)
     .slice(0, 2)
     .join("")
-    .toUpperCase();
+    .toUpperCase() || "?";
 
   return (
     <div className="h-screen flex bg-quiet-bg overflow-hidden">

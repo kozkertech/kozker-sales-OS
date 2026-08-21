@@ -10,7 +10,11 @@ export function AuthProvider({ children }) {
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get("/auth/me");
-      setUser(data);
+      if (data && typeof data === "object" && (data.id || data.email)) {
+        setUser(data);
+      } else {
+        setUser(false);
+      }
     } catch {
       setUser(false);
     } finally {
@@ -24,19 +28,23 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    if (data.access_token) {
+    if (data?.access_token) {
       setAuthToken(data.access_token);
     }
-    setUser(data);
+    if (data && typeof data === "object" && (data.id || data.email)) {
+      setUser(data);
+    }
     return data;
   };
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    if (data.access_token) {
+    if (data?.access_token) {
       setAuthToken(data.access_token);
     }
-    setUser(data);
+    if (data && typeof data === "object" && (data.id || data.email)) {
+      setUser(data);
+    }
     return data;
   };
 
