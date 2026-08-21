@@ -46,7 +46,14 @@ def ensure_indexes(db):
 
 def import_database(uri: str, db_name: str, data_dir: Path, upsert: bool = True):
     print(f"[SalesMind Import] Connecting to target database: {db_name} ...")
-    client = MongoClient(uri, serverSelectionTimeoutMS=10000)
+    kwargs = {"serverSelectionTimeoutMS": 10000}
+    if uri.startswith("mongodb+srv://") or "ssl=true" in uri.lower():
+        try:
+            import certifi
+            kwargs["tlsCAFile"] = certifi.where()
+        except ImportError:
+            pass
+    client = MongoClient(uri, **kwargs)
     db = client[db_name]
 
     try:

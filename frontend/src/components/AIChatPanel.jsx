@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { API } from "@/lib/api";
+import { API, getAuthToken } from "@/lib/api";
 import { Sparkles, ArrowUp, X } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -25,10 +25,16 @@ export default function AIChatPanel({ onClose }) {
     setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setStreaming(true);
     try {
+      const headers = { "Content-Type": "application/json" };
+      const token = getAuthToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const resp = await fetch(`${API}/chat`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ message: q }),
       });
       if (!resp.ok || !resp.body) throw new Error("chat failed");
