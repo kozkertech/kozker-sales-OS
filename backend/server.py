@@ -26,12 +26,25 @@ from email_service import send_email, invite_email_html, sequence_email_html
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
+import certifi
+
 # ----------------------------------------------------------------------------
 # Database (Supports MongoDB Atlas MONGODB_URI and legacy MONGO_URL)
 # ----------------------------------------------------------------------------
 mongo_url = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 db_name = os.environ.get("MONGODB_DATABASE") or os.environ.get("DB_NAME", "salesmind")
-client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+
+motor_kwargs: Dict[str, Any] = {
+    "serverSelectionTimeoutMS": 10000,
+    "connectTimeoutMS": 10000,
+}
+if mongo_url.startswith("mongodb+srv://") or "ssl=true" in mongo_url.lower() or "tls=true" in mongo_url.lower():
+    try:
+        motor_kwargs["tlsCAFile"] = certifi.where()
+    except Exception:
+        pass
+
+client = AsyncIOMotorClient(mongo_url, **motor_kwargs)
 db = client[db_name]
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "salesmind_super_secret_jwt_key_2026")
