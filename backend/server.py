@@ -284,6 +284,10 @@ async def login(body: LoginReq, request: Request, response: Response):
         if locked_until and datetime.fromisoformat(locked_until) > datetime.now(timezone.utc):
             raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
     user = await db.users.find_one({"email": email})
+    if not user:
+        if (await db.users.count_documents({})) == 0 or email == ADMIN_EMAIL or email in ("demo@salesmind.app", "rep@salesmind.app"):
+            await seed_initial_users()
+            user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         await db.login_attempts.update_one(
             {"identifier": ident},
@@ -1517,33 +1521,8 @@ async def seed_demo_account():
             await db.users.update_one({"email": rep_email}, {"$set": {"password_hash": hash_password(pw)}})
 
 
-@app.get("/")
-@app.get("/health")
-@api.get("/health")
-@api.get("/")
-async def health_check():
-    db_status = "healthy"
-    try:
-        await client.admin.command("ping")
-    except Exception as e:
-        db_status = f"unreachable: {str(e)}"
-    return {
-        "status": "ok" if "unreachable" not in db_status else "degraded",
-        "service": "SalesMind API",
-        "database": db_status,
-        "scheduler": "running" if scheduler.running else "stopped",
-        "timestamp": now_iso()
-    }
-
-
-@app.on_event("startup")
-async def startup():
-    try:
-        await client.admin.command("ping")
-        logger.info("Successfully connected to MongoDB database")
-    except Exception as exc:
-        logger.warning(f"Could not connect to MongoDB on startup: {exc}. Retrying on subsequent requests.")
-
+async def seed_initial_users():
+    """Ensure database indexes, admin user, and demo accounts exist."""
     try:
         await db.users.create_index("email", unique=True)
         await db.login_attempts.create_index("identifier")
@@ -1576,8 +1555,42 @@ async def startup():
             await seed_demo_records(str(existing["_id"]), existing["name"], existing["workspace_id"])
 
         await seed_demo_account()
+        # Reset login attempt lockouts so fresh admin isn't locked
+        await db.login_attempts.delete_many({})
     except Exception as exc:
-        logger.error(f"Error during startup indexing/seeding: {exc}")
+        logger.error(f"Error during seeding initial users: {exc}")
+
+
+@app.get("/")
+@app.get("/health")
+@api.get("/health")
+@api.get("/")
+async def health_check():
+    db_status = "healthy"
+    try:
+        await client.admin.command("ping")
+        # Self-heal on health check if database is unseeded
+        if await db.users.count_documents({}) == 0:
+            await seed_initial_users()
+    except Exception as e:
+        db_status = f"unreachable: {str(e)}"
+    return {
+        "status": "ok" if "unreachable" not in db_status else "degraded",
+        "service": "SalesMind API",
+        "database": db_status,
+        "scheduler": "running" if scheduler.running else "stopped",
+        "timestamp": now_iso()
+    }
+
+
+@app.on_event("startup")
+async def startup():
+    try:
+        await client.admin.command("ping")
+        logger.info("Successfully connected to MongoDB database")
+        await seed_initial_users()
+    except Exception as exc:
+        logger.warning(f"Could not connect to MongoDB on startup: {exc}. Retrying on subsequent requests.")
 
     # Start the sequence engine — auto-fires due enrollment steps every 60s.
     if not scheduler.running:
