@@ -1,0 +1,16 @@
+{
+  "name": "salesmind",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cd frontend && npx vite",
+    "start": "cd frontend && npx vite",
+    "build": "cd frontend && npx vite build",
+    "preview": "cd frontend && npx vite preview",
+    "setup": "cd frontend && npm install --legacy-peer-deps"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
