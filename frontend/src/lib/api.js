@@ -1,8 +1,8 @@
 import axios from "axios";
 import { mockRequest, mockChat } from "@/lib/mockData";
 
-const USE_MOCK = !process.env.REACT_APP_BACKEND_URL;
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+const USE_MOCK = !BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
 const realApi = axios.create({ baseURL: API, withCredentials: true });
