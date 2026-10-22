@@ -7,8 +7,8 @@ import { ArrowRight } from "lucide-react";
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState("govind.developer@kozker.com");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("alex@salesmind.ai");
+  const [password, setPassword] = useState("demo");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -45,8 +45,8 @@ export default function Login() {
           </p>
           <div className="font-mono text-xs text-quiet-muted space-y-2 border-t border-quiet-border pt-6">
             <div className="flex justify-between"><span>DYNAMIC FIELDS</span><span className="text-quiet-text">AI-native</span></div>
-            <div className="flex justify-between"><span>PIPELINE CHAT</span><span className="text-quiet-text">Claude Sonnet 5</span></div>
-            <div className="flex justify-between"><span>ENRICHMENT</span><span className="text-quiet-text">Gemini 3 Flash</span></div>
+            <div className="flex justify-between"><span>PIPELINE CHAT</span><span className="text-quiet-text">Gemini 2.5 Pro</span></div>
+            <div className="flex justify-between"><span>ENRICHMENT</span><span className="text-quiet-text">Gemini 2.5 Flash</span></div>
           </div>
         </div>
       </div>
@@ -92,7 +92,14 @@ export default function Login() {
             {busy ? "Signing in…" : "Sign in"} <ArrowRight size={16} />
           </button>
 
-          <p className="mt-6 text-sm font-body text-operational-muted text-center">
+          <div className="mt-5 mb-2 border border-operational-border bg-operational-surface rounded-sm px-3 py-2.5">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-coral mb-1">Preview mode</p>
+            <p className="font-body text-xs text-operational-muted leading-relaxed">
+              Sign in with any email and password to explore a fully populated demo workspace.
+            </p>
+          </div>
+
+          <p className="mt-4 text-sm font-body text-operational-muted text-center">
             No workspace yet?{" "}
             <Link to="/register" data-testid="go-register" className="text-coral hover:underline">Create one</Link>
           </p>

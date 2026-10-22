@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { API } from "@/lib/api";
+import { API, USE_MOCK, mockChat } from "@/lib/api";
 import { Sparkles, ArrowUp, X } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -25,24 +25,35 @@ export default function AIChatPanel({ onClose }) {
     setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setStreaming(true);
     try {
-      const resp = await fetch(`${API}/chat`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: q }),
-      });
-      if (!resp.ok || !resp.body) throw new Error("chat failed");
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
-          return copy;
+      if (USE_MOCK) {
+        const stream = await mockChat(q);
+        for await (const chunk of stream) {
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
+            return copy;
+          });
+        }
+      } else {
+        const resp = await fetch(`${API}/chat`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: q }),
         });
+        if (!resp.ok || !resp.body) throw new Error("chat failed");
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
+            return copy;
+          });
+        }
       }
     } catch {
       setMessages((m) => {
